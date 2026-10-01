@@ -366,6 +366,7 @@ body.talking .pad,body.talking .act{display:none}
   <div class="quest" id="quest"><span class="ch" id="qch"></span><span class="obj" id="qobj"></span></div>
   <div class="hbtns">
     <span class="money" id="money" hidden></span>
+    <button class="hb" id="bMap">이야기 지도</button>
     <button class="hb" id="bPeople">인물·소재첩<span class="n" id="nPeople">0</span></button>
     <button class="hb" id="bEvid" hidden>증거첩<span class="n" id="nEvid">0</span></button>
     <button class="hb" id="bTip">배움첩<span class="n" id="nTip">0</span></button>
@@ -820,7 +821,7 @@ const G={tips:[],gloss:true,route:"wife",ch:0,map:null,player:{tx:0,ty:0,dir:"d"
 const SAVEKEY="geum-rpg-v1";
 function loadSave(){try{return JSON.parse(localStorage.getItem(SAVEKEY)||"null")}catch(e){return null}}
 (()=>{const sv=loadSave();if(sv){G.tips=sv.tips||[];G.gloss=sv.gloss!==false}})();
-function writeSave(){try{const s=loadSave()||{};s.route=G.route;s.ch=G.ch;s.rec=G.rec;s.tips=G.tips;s.gloss=G.gloss;s.nav=G.nav;s.met=G.met;s.xp=G.xp;s.skills=G.skills;localStorage.setItem(SAVEKEY,JSON.stringify(s))}catch(e){}}
+function writeSave(){try{const s=loadSave()||{};s.route=G.route;s.ch=G.ch;s.rec=G.rec;s.tips=G.tips;s.gloss=G.gloss;s.nav=G.nav;s.met=G.met;s.xp=G.xp;s.skills=G.skills;s.ex=G.ex;localStorage.setItem(SAVEKEY,JSON.stringify(s))}catch(e){}}
 (()=>{const sv=loadSave();G.met=(sv&&sv.met)||[];G.xp=(sv&&sv.xp)||0;G.skills=(sv&&sv.skills)||[]})();
 (()=>{const sv=loadSave();G.nav=!(sv&&sv.nav===false)})();
 
@@ -874,7 +875,7 @@ async function run(fn){if(G.busy)return;G.busy=true;try{await fn()}catch(err){co
 const STEP=0.2;
 function tryMove(ent,dir){
   ent.dir=dir;const [dx,dy]=DIRV[dir];const nx=ent.tx+dx,ny=ent.ty+dy;
-  if(blocked(nx,ny,ent))return false;ent.moving=true;ent.prog=0;ent.nx=nx;ent.ny=ny;ent.step++;if(ent===G.player&&ent.step%2)sfx(ent.look==="bell"?"jingle":"step");else if(ent.look==="bell"&&ent.step%2&&!G.demo&&Math.abs(ent.tx-G.player.tx)+Math.abs(ent.ty-G.player.ty)<9)sfx("jingle");
+  if(blocked(nx,ny,ent))return false;ent.moving=true;ent.prog=0;ent.nx=nx;ent.ny=ny;ent.step++;if(ent===G.player&&ent.step%2)sfx(ent.look==="bell"?"jingle":ent.mount?"clop":"step");else if(ent.look==="bell"&&ent.step%2&&!G.demo&&Math.abs(ent.tx-G.player.tx)+Math.abs(ent.ty-G.player.ty)<9)sfx("jingle");
   if(ent.look!=="chicken"&&!G.night&&Math.random()<(ent===G.player?0.9:0.4))for(let k=0;k<2;k++)addPart({k:"dust",x:ent.tx*T+8+(Math.random()*6-3),y:ent.ty*T+15,vx:-dx*6+(Math.random()*8-4),vy:-4-Math.random()*4,life:0.45});
   return true;
 }
@@ -958,6 +959,7 @@ function draw(t){
   const ents=m.npcs.filter(visible).concat(G.demo?[]:[G.player]);
   for(const e of ents){const [px,py]=entPos(e);dr.push({y:py+T+0.5,f:()=>{
     let sx=Math.round(px-cx);let sy=Math.round(py-cy);const ph=e.ph||0;if(e.lift)sy-=e.lift;if(e.dance){sy-=Math.round(Math.abs(Math.sin(t*5+ph))*3);e.dir=["d","l","d","r"][Math.floor(t*2.2+ph)%4]}if(e.lunge){const q=(performance.now()/1000-e.lunge.t0)/0.26;if(q>=1)e.lunge=null;else{const k=Math.sin(Math.PI*q)*5;sx+=Math.round(e.lunge.dx*k);sy+=Math.round(e.lunge.dy*k)}}if(e.hurt>0){e.hurt-=1/60;sx+=Math.round(Math.sin(t*70)*2)}
+    const ms=e.mount&&!e.down&&typeof drawHorse==="function"?sy:null;if(ms!=null){drawHorse(e,sx,ms,t,0);sy-=8}
     const av=AV[AVA_OF[e.look]];let topY;ctx.globalAlpha=e.ghost?0.5:(e.fade!=null?e.fade:1);
     if(e.echo&&av){for(let k=0;k<e.echo;k++){ctx.globalAlpha=0.28;drawAvatar(e,av,sx+Math.round(Math.cos(t*2.3+k*0.8)*(7+k*1.5)),sy-Math.round(Math.abs(Math.sin(t*3+k))*5)-k,t)}ctx.globalAlpha=1}
     if(e.look==="bell")topY=drawBell(e,sx,sy,t);else if(av){if(e.down){const hh=av.d.height/Q;ctx.save();ctx.translate(sx+8,sy+10);ctx.rotate(Math.PI/2*e.down);ctx.translate(-(sx+8),-(sy+15-hh/2));drawAvatar(e,av,sx,sy,t);ctx.restore();topY=sy-6}else topY=drawAvatar(e,av,sx,sy,t)}
@@ -969,6 +971,7 @@ function draw(t){
       if(breathe){ctx.drawImage(spr,0,24,SW,SH-24,bx,by+24,SW,SH-24);ctx.drawImage(spr,0,0,SW,24,bx,by+1,SW,24)}else ctx.drawImage(spr,bx,by);
       topY=by+2;
     }
+    if(ms!=null)drawHorse(e,sx,ms,t,1);
     if(e.hold&&typeof drawHeld==="function")drawHeld(e,sx,sy,topY,t);
     ctx.globalAlpha=1;
     if(e!==G.player&&!G.demo)LABELS.push({x:sx+8,y:topY,name:e.name&&e.look!=="chicken"?e.name:"",mark:!!(e.mark&&!G.busy&&e.mark())});
@@ -1086,7 +1089,7 @@ function updateHUD(){
   $("#nRec").textContent=G.rec.length;{const np=$("#nPeople");if(np)np.textContent=(G.met||[]).length}const n=$("#nTip");if(n)n.textContent=G.tips.length;
 }
 /* 원작과 다른 선택을 했을 때 되짚기 */
-async function notOriginal(who,why){await say("narr",why);tip("원작의 인물이 실제로 어떻게 했는지 다시 골라 보세요. 인물의 성격이 선택에 드러나요.")}
+async function notOriginal(who,why){if(typeof miss==="function")miss(why);await say("narr",why);tip("원작의 인물이 실제로 어떻게 했는지 다시 골라 보세요. 인물의 성격이 선택에 드러나요.")}
 
 /* ═════════ 미니게임 ═════════ */
 function timing(level,o){
@@ -1190,7 +1193,7 @@ $("#bTip").onclick=()=>{
 $("#bPeople").onclick=()=>{const M=(G.met||[]).filter(id=>PEOPLE_DB[id]);const grp=k=>M.filter(id=>PEOPLE_DB[id].k===k);
   const row=id=>{const p=PEOPLE_DB[id];return `<div class="item">${(p.img?[].concat(p.img):[]).map(i=>`<img class="thumb" src="art/${i}.jpg" alt="">`).join("")}<div class="t">${esc(p.n)}${p.a?` <span class="alias">(${esc(p.a)})</span>`:""}</div><div class="d">${esc(p.d)}</div></div>`};
   openPanel(`<span class="eb">인물·소재첩</span><h2>누가 누구이고, 무엇이 중요할까</h2><p class="note">이야기에서 만난 인물과 중요한 소재가 모여요. 한 인물이 여러 이름으로 불리니 괄호 속 다른 이름도 함께 기억해 두세요.</p>
-  <h3>인물</h3><div class="list">${grp("p").map(row).join("")||'<p class="note">아직 만난 인물이 없어요.</p>'}</div><h3>소재</h3><div class="list">${grp("s").map(row).join("")||'<p class="note">아직 알게 된 소재가 없어요.</p>'}</div>`)};
+  <h3>관계도</h3>${typeof relGraph==="function"?relGraph():""}<h3>인물</h3><div class="list">${grp("p").map(row).join("")||'<p class="note">아직 만난 인물이 없어요.</p>'}</div><h3>소재</h3><div class="list">${grp("s").map(row).join("")||'<p class="note">아직 알게 된 소재가 없어요.</p>'}</div>`)};
 $("#bEvid").onclick=()=>{openPanel(`<span class="eb">증거첩</span><h2>모은 증거</h2><div class="list">${G.evid.length?G.evid.map(id=>`<div class="item"><div class="t">${esc(EVID[id].t)}</div><div class="d">${esc(EVID[id].d)}</div></div>`).join(""):'<p class="note">아직 모은 증거가 없어요.</p>'}</div>`)};
 $("#bMenu").onclick=()=>{openPanel(`<span class="eb">메뉴</span><h2>메뉴</h2>
   <h3>설정</h3><div class="list"><button class="item" data-gloss style="text-align:left;cursor:pointer"><div class="t">현대어 풀이 · ${G.gloss?"켜짐":"꺼짐"}</div><div class="d">원문(原) 대사 아래에 쉬운 현대어 풀이를 함께 보여 줘요. 눌러서 켜고 끌 수 있어요.</div></button></div>
@@ -1779,38 +1782,38 @@ function xpRank(){const x=G.xp||0;return x>=280?"천하에 이름난 영웅":x>=
 function duelGame(cfg){
   return new Promise(res=>{
     let my=cfg.myHp||5,foe=cfg.foeHp||5,round=0,phase="intro",timer=null,pos=0,dir=1,zl=0.4,zw=0.2,tele=null,teleLeft=0,teleN=0,msg=cfg.intro||"",over=false;
-    const me=PORT[G.player.look]||"p_hr",fo=PORT[cfg.foe]||"p_hogak";
+    const me=cfg.meImg||PORT[G.player.look]||"p_hr",fo=PORT[cfg.foe]||"p_hogak";
     const v=mgOpen("");const box=v.querySelector(".sheet");box.classList.add("duel");
     const pips=(n,max,c)=>Array.from({length:max},(_,k)=>`<i class="${k<n?"on":""}" style="--c:${c}"></i>`).join("");
     const FX1=(who,word)=>{const el=box.querySelector(who==="me"?".dme":".dfoe"),at=box.querySelector(who==="me"?".dfoe":".dme");if(el){el.classList.remove("hitfx");void el.offsetWidth;el.classList.add("hitfx")}if(at){at.classList.remove("atkfx");void at.offsetWidth;at.classList.add("atkfx")}shk(box);const w=box.querySelector(".dword");if(w){w.textContent=word;w.classList.remove("pop2");void w.offsetWidth;w.classList.add("pop2")}
       G.shake=Math.max(G.shake||0,5);G.flash=Math.max(G.flash||0,0.25);if(cfg.ent){const t=who==="me"?G.player:cfg.ent,a=who==="me"?cfg.ent:G.player;lungeAt(a,t);t.hurt=0.35;FX.push({k:"hit",e:t,t0:performance.now()/1000,dur:0.6,word,col:who==="me"?"#f07a6a":"#f2c94c"})}};
     const paint=()=>{
       box.innerHTML=`<span class="eb">일대일 대결 · ${round?round+"합째":"맞서다"}</span><h2>${esc(cfg.title||"대결")}</h2>
-      <div class="dtop"><figure class="dme"><img src="art/${me}.jpg" alt=""><figcaption>${esc(NAMES[G.player.look]||"해룡")}<span class="hp">${pips(my,cfg.myHp||5,"#2b4a6f")}</span></figcaption></figure>
+      <div class="dtop"><figure class="dme"><img src="art/${me}.jpg" alt=""><figcaption>${esc(cfg.meName||NAMES[G.player.look]||"해룡")}<span class="hp">${pips(my,cfg.myHp||5,"#2b4a6f")}</span></figcaption></figure>
         <div class="dmid"><div class="dword"></div><div class="dvs">對</div></div>
         <figure class="dfoe"><img src="art/${fo}.jpg" alt=""><figcaption>${esc(cfg.name)}<span class="hp">${pips(foe,cfg.foeHp||5,"#b3362b")}</span></figcaption></figure></div>
-      ${phase==="atk"?`<p class="note"><b>공격!</b> 창끝이 붉은 칸에 들어왔을 때 치세요. 한가운데면 회심의 일격! (Space · Enter · 아래 버튼)</p><div class="bar"><div class="zone" style="left:${zl*100}%;width:${zw*100}%"></div><div class="crit" style="left:${(zl+zw*0.35)*100}%;width:${zw*0.3*100}%"></div><div class="needle"></div></div><div class="row" style="justify-content:center"><button class="btn pri" data-hit>치기!</button></div>`:""}
-      ${phase==="def"?`<p class="note"><b>방어!</b> 적의 창이 오는 쪽 방향키(또는 버튼)를 눌러 막으세요.</p><div class="tele"><span class="tarrow">${tele?ARG[tele]:""}</span><div class="tring"><i></i></div></div>${PAD4}`:""}
+      ${phase==="atk"?`<p class="note"><b>공격!</b> ${cfg.atkNote||"창끝이 붉은 칸에 들어왔을 때 치세요. 한가운데면 회심의 일격!"} (Space · Enter · 아래 버튼)</p><div class="bar"><div class="zone" style="left:${zl*100}%;width:${zw*100}%"></div><div class="crit" style="left:${(zl+zw*0.35)*100}%;width:${zw*0.3*100}%"></div><div class="needle"></div></div><div class="row" style="justify-content:center"><button class="btn pri" data-hit>치기!</button></div>`:""}
+      ${phase==="def"?`<p class="note"><b>방어!</b> 공격이 오는 쪽 방향키(또는 버튼)를 눌러 막으세요.</p><div class="tele"><span class="tarrow">${tele?ARG[tele]:""}</span><div class="tring"><i></i></div></div>${PAD4}`:""}
       ${phase==="intro"||phase==="end"?`<div class="row" style="justify-content:center"><button class="btn pri" data-go>${phase==="end"?"계속 ▶":"싸움 시작!"}</button></div>`:""}
       <div class="resp">${msg||"&nbsp;"}</div>`;
     };
     const stop=()=>{clearInterval(timer);timer=null};
     const end=(m)=>{stop();over=true;phase="end";msg=m;paint()};
     const check=()=>{if(foe<=0){end(cfg.win||"적장이 쓰러졌다!");return true}
-      if(my<=0){my=cfg.myHp||5;msg="휘청였지만 다시 창을 고쳐 잡았다. (기력 회복)"}
+      if(my<=0){my=cfg.myHp||5;msg=(cfg.recoverMsg||"휘청였지만 다시 창을 고쳐 잡았다.")+" (기력 회복)"}
       if(cfg.rounds&&round>=cfg.rounds){end(cfg.draw||"승부가 나지 않는다.");return true}return false};
     const startAtk=()=>{round++;phase="atk";pos=0;dir=1;zw=Math.max(0.14,0.24-round*0.02);zl=0.15+Math.random()*(0.7-zw);paint();
       const nd=()=>box.querySelector(".needle");stop();timer=setInterval(()=>{pos+=dir*0.022*(1+round*0.12);if(pos>1){pos=1;dir=-1}if(pos<0){pos=0;dir=1}const n=nd();if(n)n.style.left=`calc(${pos*100}% - 2px)`},16)};
     const hit=()=>{if(phase!=="atk")return;stop();
-      if(pos>=zl+zw*0.35&&pos<=zl+zw*0.65){foe-=2;msg="<b>회심의 일격!</b> 적장이 크게 휘청인다.";sfx("slash");sfx("whack");FX1("foe","콰앙!")}
-      else if(pos>=zl&&pos<=zl+zw){foe-=1;msg="창이 적장의 갑옷을 쳤다!";sfx("clang");FX1("foe","챙!")}
+      if(pos>=zl+zw*0.35&&pos<=zl+zw*0.65){foe-=2;msg="<b>회심의 일격!</b> 상대가 크게 휘청인다.";sfx("slash");sfx("whack");FX1("foe","콰앙!")}
+      else if(pos>=zl&&pos<=zl+zw){foe-=1;msg=cfg.hitMsg||"창이 적장의 갑옷을 쳤다!";sfx("clang");FX1("foe","챙!")}
       else{msg="빗나갔다!";sfx("wrong")}
       paint();if(foe<=0){setTimeout(()=>check(),500);return}setTimeout(startDef,750)};
     const startDef=()=>{phase="def";teleN=0;nextTele()};
     const nextTele=()=>{if(teleN>=2){if(!check())setTimeout(startAtk,500);return}teleN++;tele="udlr"[Math.floor(Math.random()*4)];teleLeft=1;paint();sfx("pull");
-      stop();const dur=Math.max(0.75,1.35-round*0.1);timer=setInterval(()=>{teleLeft-=0.016/dur;const r=box.querySelector(".tring i");if(r)r.style.width=Math.max(0,teleLeft*100)+"%";if(teleLeft<=0){stop();my--;msg="막지 못했다! 적의 창이 어깨를 스친다.";sfx("slap");FX1("me","퍽!");tele=null;paint();setTimeout(nextTele,650)}},16)};
+      stop();const dur=Math.max(0.75,1.35-round*0.1);timer=setInterval(()=>{teleLeft-=0.016/dur;const r=box.querySelector(".tring i");if(r)r.style.width=Math.max(0,teleLeft*100)+"%";if(teleLeft<=0){stop();my--;msg=cfg.missMsg||"막지 못했다! 적의 창이 어깨를 스친다.";sfx("slap");FX1("me","퍽!");tele=null;paint();setTimeout(nextTele,650)}},16)};
     const block=a=>{if(phase!=="def"||!tele||!timer)return;stop();
-      if(a===tele){msg="<b>막았다!</b> 불꽃이 튄다.";sfx("clang");FX1("foe","챙!")}else{my--;msg="엉뚱한 쪽을 막았다! 적의 창이 스친다.";sfx("slap");FX1("me","퍽!")}
+      if(a===tele){msg="<b>막았다!</b> 불꽃이 튄다.";sfx("clang");FX1("foe","챙!")}else{my--;msg=cfg.wrongMsg||"엉뚱한 쪽을 막았다! 적의 창이 스친다.";sfx("slap");FX1("me","퍽!")}
       tele=null;paint();setTimeout(nextTele,600)};
     paint();
     box.addEventListener("click",e=>{if(e.target.closest("[data-hit]")){hit();return}const b=e.target.closest("[data-a]");if(b){block(b.dataset.a);return}
@@ -1830,7 +1833,7 @@ function usePower(ans,q){
     paint();
     box.addEventListener("click",e=>{const b=e.target.closest("[data-pw]");if(!b)return;const id=b.dataset.pw;
       if(id===ans){sfx("correct");mgCloseQuiet(v);if(!tries)addXp(10);powerPop(id);res()}
-      else{tries++;sfx("wrong");msg=`${esc(ITEMS[id].n)}: ${esc(ITEMS[id].d)} 이 일에는 맞지 않아요.`;paint();shk(box)}});
+      else{tries++;miss(q);sfx("wrong");msg=`${esc(ITEMS[id].n)}: ${esc(ITEMS[id].d)} 이 일에는 맞지 않아요.`;paint();shk(box)}});
     UI.onKey=e=>{const d=parseInt(e.key);if(d>=1&&d<=4){box.querySelector(`[data-cy="${d-1}"]`).click()}return true};
   });
 }
@@ -1861,7 +1864,7 @@ function aliasGame(list){
       ${msg?`<div class="resp">${msg}</div>`:""}`};
     paint();
     box.addEventListener("click",e=>{const b=e.target.closest("[data-al]");if(b&&i<list.length){const [a,own,why]=list[i];
-        if(b.dataset.al===own){sfx("correct");msg=`<b>${esc(a)}</b>: ${esc(why)}`;i++;paint()}else{wrong++;sfx("wrong");msg="다시 생각해 보세요.";paint();shk(box)}return}
+        if(b.dataset.al===own){sfx("correct");msg=`<b>${esc(a)}</b>: ${esc(why)}`;i++;paint()}else{wrong++;miss();sfx("wrong");msg="다시 생각해 보세요.";paint();shk(box)}return}
       if(e.target.closest("[data-go]")){mgCloseQuiet(v);addXp(Math.max(10,40-wrong*5));res()}});
     UI.onKey=e=>{if(i>=list.length&&["Enter","Space"].includes(e.code)){box.querySelector("[data-go]").click()}return true};
   });
@@ -1888,7 +1891,7 @@ function poemGame(){
     paint();
     box.addEventListener("click",e=>{const b=e.target.closest("[data-pl]");if(b){const k=+b.dataset.pl;
         if(k===ev[next]){sfx("brush");written.push(k);if(k===2)written.push(3,4);next++;msg="";if(next>=ev.length){written.push(9,10,11);sfx("correct")}paint()}
-        else{wrong++;sfx("wrong");msg=`그 일은 더 뒤에 일어났어요. 지금 쓸 차례는 ‘${hintOf[ev[next]]}’이에요.`;paint()}return}
+        else{wrong++;miss();sfx("wrong");msg=`그 일은 더 뒤에 일어났어요. 지금 쓸 차례는 ‘${hintOf[ev[next]]}’이에요.`;paint()}return}
       if(e.target.closest("[data-go]")){mgCloseQuiet(v);addXp(Math.max(10,30-wrong*5));res()}});
     UI.onKey=e=>{if(next>=ev.length&&["Enter","Space"].includes(e.code)){box.querySelector("[data-go]").click()}return true};
   });
@@ -2033,14 +2036,14 @@ function setVol(kind,v){if(kind==="sfx")AU.sfxVol=v;else{AU.musicVol=v;if(AU.ctx
 document.addEventListener("visibilitychange",()=>{if(!AU.ctx)return;if(document.hidden){AU.ctx.suspend()}else if(AU.on||AU.sfxOn){AU.ctx.resume()}});
 addEventListener("pagehide",()=>{if(AU.ctx)AU.ctx.suspend()});
 
-const SFXVOL={give:6,swish:5,clang:5,slash:5,roar:4,thunder:3,boom:3,crackle:3,fire:4,wind:4.5,howl:2.5,hoof:3.2,drum:3,arrow:6,cheer:5,chop:3.5,pop:5,magic:6,thud:3.5,crane:6,brush:8,gulp:4,heal:6,grow:5,shrink:5,jingle:7,slap:5,blip:20,click:18,step:40,page:10,tip:7.5,stitch:14,bubble:13,pull:24,coin:4.6,gain:5,correct:5.5,wrong:15,whack:3.2,gong:1.9,poof:9,splash:5.5,stamp:5.5};
+const SFXVOL={clop:3,give:6,swish:5,clang:5,slash:5,roar:4,thunder:3,boom:3,crackle:3,fire:4,wind:4.5,howl:2.5,hoof:3.2,drum:3,arrow:6,cheer:5,chop:3.5,pop:5,magic:6,thud:3.5,crane:6,brush:8,gulp:4,heal:6,grow:5,shrink:5,jingle:7,slap:5,blip:20,click:18,step:40,page:10,tip:7.5,stitch:14,bubble:13,pull:24,coin:4.6,gain:5,correct:5.5,wrong:15,whack:3.2,gong:1.9,poof:9,splash:5.5,stamp:5.5};
 /* ═════════ 효과음 (직접 합성) ═════════ */
 function sfx(name){
   if(!AU.sfxOn)return;if(!AU.ctx&&!auInit())return;const ac=AU.ctx;if(ac.state==="suspended")ac.resume();
   const t=ac.currentTime+0.01;
   if(!AU.sfxBus){const c=ac.createDynamicsCompressor();c.threshold.value=-8;c.knee.value=6;c.ratio.value=10;c.attack.value=0.002;c.release.value=0.12;c.connect(ac.destination);AU.sfxBus=c}
   const out=ac.createGain();out.gain.value=(SFXVOL[name]||3)*AU.sfxVol;out.connect(AU.sfxBus);
-  if(AU.bus&&!/step|blip|jingle|crackle|howl|hoof|brush/.test(name)){AU.bus.gain.cancelScheduledValues(t);AU.bus.gain.setTargetAtTime(0.45,t,0.02);AU.bus.gain.setTargetAtTime(1,t+0.35,0.25)}
+  if(AU.bus&&!/step|blip|jingle|crackle|howl|hoof|brush|clop/.test(name)){AU.bus.gain.cancelScheduledValues(t);AU.bus.gain.setTargetAtTime(0.45,t,0.02);AU.bus.gain.setTargetAtTime(1,t+0.35,0.25)}
   const tone=(f,st,dur,type,vol,f2)=>{const o=ac.createOscillator(),g=ac.createGain();o.type=type||"sine";o.frequency.setValueAtTime(f,t+st);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+st+dur);
     g.gain.setValueAtTime(0.0001,t+st);g.gain.exponentialRampToValueAtTime(vol,t+st+0.005);g.gain.exponentialRampToValueAtTime(0.0005,t+st+dur);o.connect(g);g.connect(out);o.start(t+st);o.stop(t+st+dur+0.05)};
   const noise=(st,dur,type,freq,vol,q,freq2)=>{const n=noiseSrc(t+st,dur),f=ac.createBiquadFilter(),g=ac.createGain();f.type=type;f.frequency.setValueAtTime(freq,t+st);if(freq2)f.frequency.exponentialRampToValueAtTime(freq2,t+st+dur);f.Q.value=q||1;
@@ -2064,6 +2067,7 @@ function sfx(name){
     case"pull":noise(0,0.1,"bandpass",700,0.07,1.5);tone(200,0,0.08,"triangle",0.04,260);break;
     case"slap":noise(0,0.07,"bandpass",2200,0.5,1.1);tone(220,0,0.12,"sine",0.25,110);break;
     case"jingle":[[2637,0],[3136,0.06],[2794,0.12],[3520,0.18]].forEach(([f,st])=>{tone(f,st,0.16,"triangle",0.05);tone(f*2.01,st,0.08,"sine",0.02)});noise(0,0.05,"highpass",6000,0.03);break;
+    case"clop":tone(170,0,0.05,"sine",0.2,90);noise(0,0.03,"lowpass",1000,0.1);tone(150,0.09,0.05,"sine",0.16,80);noise(0.09,0.03,"lowpass",900,0.08);break;
     case"give":tone(880,0,0.12,"sine",0.08);tone(1318,0.08,0.24,"sine",0.08);noise(0,0.08,"highpass",4000,0.03);break;
     case"swish":noise(0,0.18,"bandpass",900,0.14,1.2,3600);break;
     case"clang":tone(1900,0,0.35,"square",0.03,1700);tone(2850,0,0.25,"sine",0.05);tone(1270,0,0.4,"triangle",0.05);noise(0,0.04,"highpass",5000,0.2);break;
@@ -2265,7 +2269,7 @@ function buildDream(){
 /* 앞일 헤아리기: 한 번 고르고 원문으로 확인 */
 async function predict(who,q,opts,ans,right,wrong){
   const c=await choose(who,q,opts,{think:1});
-  if(c===ans){sfx("correct");addXp(10);await say("narr",right)}else{sfx("wrong");await say("narr",wrong)}
+  if(c===ans){sfx("correct");addXp(10);await say("narr",right)}else{sfx("wrong");miss(q);await say("narr",wrong)}
   return c===ans;
 }
 function teleport(x,y,dir){G.flash=0.8;sfx("poof");place(x,y,dir||"d")}
@@ -2287,14 +2291,14 @@ const ROUTES={
 function place(x,y,dir,look){Object.assign(G.player,{tx:x,ty:y,dir:dir||"d",moving:false,prog:0,look:look||G.player.look})}
 function talkChicken(){return say("narr","꼬꼬댁! 모이를 쪼던 닭이 고개를 갸웃한다.")}
 async function startChapter(route,n){
-  G.route=route;G.ch=n;G.f={};G.hist=[];G.zone=null;if(G.player){G.player.hold=null;G.player.down=0}if(route==="bell"&&n>=2)G.skills=["silk","fan","redfan","flag"];if(route==="bell"&&n===1)G.skills=[];G.partyAt=null;G.tileTask=null;G.pspeed=null;G.dream=false;G.busy=false;G.demo=false;G.night=false;G.snow=false;G.petals=false;G.lights=[];G.lock=false;G.money=0;G.purseOn=false;G.obj="";
+  G.route=route;G.ch=n;G.f={};G.hist=[];G.zone=null;if(G.player){G.player.hold=null;G.player.down=0;G.player.mount=0;G.player.fade=null}if(route==="bell"&&n>=2)G.skills=["silk","fan","redfan","flag"];if(route==="bell"&&n===1)G.skills=[];G.partyAt=null;G.tileTask=null;G.pspeed=null;G.dream=false;G.busy=false;G.demo=false;G.night=false;G.snow=false;G.petals=false;G.lights=[];G.lock=false;G.money=0;G.purseOn=false;G.obj="";
   PARTS.length=0;$("#hud").hidden=false;writeSave();
   const S=(route==="bell"?[null,B1,B2,B3,B4,B5]:[null,H1,H2,H3,H4,H5])[n];
   S.setup();updateHUD();
   setMood({bell:[0,"sad","hanyang","home","hanyang","trial"],hr:[0,"sad","hanyang","sad","pyong","trial"]}[route][n]);
   await run(S.intro);
 }
-async function toNext(title,ev){await orderPuzzle(title,ev);addXp(30);const n=G.ch+1;setTimeout(()=>{if(n>ROUTES[G.route].chapters.length)showEnding();else startChapter(G.route,n)},0)}
+async function toNext(title,ev){await orderPuzzle(title,ev);addXp(30);chapterDone();await storyMapSheet();const n=G.ch+1;setTimeout(async()=>{if(n>ROUTES[G.route].chapters.length){await heroGame();showEnding()}else startChapter(G.route,n)},0)}
 
 /* ═════════ 결말 ═════════ */
 async function showEnding(){
@@ -2325,7 +2329,8 @@ async function showEnding(){
 3. 이 작품의 제목이 「해룡전」이 아니라 「금방울전」인 까닭을 말해 보세요.
 4. 족자·칠성 사마귀·보은초·꿈은 각각 어떤 사건을 이끌었나요?
 5. ${G.route==="bell"?"이번에는 해룡이 되어 같은 사건을 겪어 보세요. 금방울의 도움이 해룡에게는 어떻게 보였을까요?":"이번에는 금방울이 되어 같은 사건을 겪어 보세요. 해룡이 몰랐던 금방울의 이야기가 보여요."}</p>
-  <div class="row"><button class="btn" data-go="rec">기록첩 보기</button><button class="btn" data-go="other">${esc(ROUTES[other].name)}의 이야기로</button><button class="btn pri" data-go="title">표지로</button></div></div>`);
+  <div class="row"><button class="btn" data-go="cert">수료증 만들기</button><button class="btn" data-go="rec">기록첩 보기</button><button class="btn" data-go="other">${esc(ROUTES[other].name)}의 이야기로</button><button class="btn pri" data-go="title">표지로</button></div></div>`);
+  if(v==="cert"){await certSheet();return showEnding()}
   if(v==="rec"){showTitle();$("#bRec").click()}else if(v==="other"){hardGo({route:other,ch:1})}else hardGo("title");
 }
 
@@ -2352,7 +2357,7 @@ function showTitle(){
   document.body.appendChild(el);
   UI.modal=true;UI.onKey=null;
   el.addEventListener("click",e=>{
-    const r=e.target.closest("[data-r]");if(r){el.remove();UI.modal=false;G.rec=[];G.met=[];G.xp=0;G.skills=[];startChapter(r.dataset.r,1);return}
+    const r=e.target.closest("[data-r]");if(r){el.remove();UI.modal=false;G.rec=[];G.met=[];G.xp=0;G.skills=[];if(G.ex){G.ex.wrong=0;G.ex.missed=[]}startChapter(r.dataset.r,1);return}
     const b=e.target.closest("[data-t]");if(!b)return;const v=b.dataset.t;
     if(v==="menu"){$("#bMenu").click();return}
     if(v==="credits"){showCredits();return}
@@ -2475,6 +2480,245 @@ setInterval(()=>{if(document.hidden||!G.map||G.demo||typeof AU==="undefined"||!A
 function putNear(o,cands){const p=G.player;for(const [x,y] of cands){if(p.tx===x&&p.ty===y)continue;if(!o.pass&&blocked(x,y,null))continue;o.x=x;o.y=y;o.w=o.w||1;o.h=o.h||1;G.map.objs.push(o);return o}return null}
 async function lookScroll(){await card("족자","금령이 물어 온 그림","길가에서 우는 아이, 사면에서 쫓아오는 도적, 달아나는 부부. 그리고 한 사람이 아이를 업고 마을로 들어간다.","i_scroll")}
 
+/* ═════════ 덧붙인 요소: 이야기 지도, 영웅의 일생, 수료증, 관계도, 전생, 서술 특징, 숨은 소품, 말 ═════════ */
+G.ex=Object.assign({done:{bell:0,hr:0},traits:{},finds:[],wrong:0,missed:[],name:""},(loadSave()||{}).ex||{});
+(()=>{const st=document.createElement("style");st.textContent=`
+.smapt{width:100%;border-collapse:collapse;font-family:var(--ui);font-size:13.5px;line-height:1.6;margin:8px 0}
+.smapt th,.smapt td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
+.smapt tr>th:first-child{width:5.2em;font-family:var(--display);font-weight:400;font-size:15px;background:var(--paper2)}
+.smapt th span{display:block;font-family:var(--ui);font-size:10.5px;color:#8a6a1f}
+.smapt td em{display:block;font-style:normal;font-size:10.5px;color:var(--muted)}
+.smapt td i{display:block;font-style:normal;font-size:11px;color:#8a6a1f}
+.smapt td.hr{background:#eef2f7}.smapt td.bell{background:#fbeeea}.smapt td.peek{background:#fff8e4}
+.smapt td.lock{color:#b9a987;background:repeating-linear-gradient(45deg,#f1ead8 0 6px,#ebe2cc 6px 12px)}
+.smapt td.none{color:#b9a987;text-align:center}
+.smapt tr.lk>th:first-child{border-left:4px solid #d4b04a}
+.smapt tr.new td,.smapt tr.new th{animation:smnew 1.2s ease-out 2}
+@keyframes smnew{0%{box-shadow:inset 0 0 0 3px #f2c94c}100%{box-shadow:inset 0 0 0 0 #f2c94c}}
+.stamps{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:8px 0}
+.stamp{border:2px dashed var(--line);padding:8px 10px;font-family:var(--ui);font-size:13px;line-height:1.6;color:var(--muted)}
+.stamp.on{border:2px solid var(--seal);color:var(--ink);background:#fff}
+.stamp b{display:block;font-family:var(--display);font-weight:400;font-size:16px;color:var(--seal)}
+.stamp q{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;quotes:"“" "”"}
+.relg{width:100%;height:auto;background:#f7f2e4;border:1px solid var(--line);margin:6px 0}
+.herobox .hstages{margin:8px 0;padding-left:1.4em;font-family:var(--ui);font-size:14px;line-height:1.6}
+.herobox .hstages li{padding:3px 6px;margin:2px 0;border-left:3px solid var(--line)}
+.herobox .hstages li.cur{border-left-color:var(--seal);background:#fff3d6}
+.herobox .hstages li.ok{border-left-color:var(--indigo)}
+.herobox .hstages li span{display:block;font-size:13px;color:#4a4034}
+.herobox .hpool{display:grid;gap:6px;margin-top:8px}
+.herobox .hpool .btn{text-align:left;font-size:14px;line-height:1.5;white-space:normal}
+.cert{text-align:center;border:6px double var(--ink2) !important}
+.cert h2{font-size:28px;margin:2px 0}.cert p{margin:4px 0}
+.cert .who{font-family:var(--display);font-size:24px;margin:10px 0 2px}
+.cert .who input{color:var(--ink);font:inherit;width:8em;text-align:center;border:0;border-bottom:2px solid var(--ink2);background:transparent}
+.cert table{margin:10px auto;border-collapse:collapse;font-family:var(--ui);font-size:14px}
+.cert td{border:1px solid var(--line);padding:3px 12px;text-align:left}
+.cert td:last-child{font-variant-numeric:tabular-nums;font-weight:700;text-align:right}
+.cert .seal{display:inline-grid;place-items:center;width:52px;height:52px;border:3px solid var(--seal);color:var(--seal);font-family:var(--display);font-size:14px;line-height:1.1;transform:rotate(-8deg);margin:2px}
+.cert ul{font-family:var(--ui);font-size:12.5px;text-align:left;color:#4a4034;margin:4px auto;max-width:34em}
+`;document.head.appendChild(st)})();
+
+/* ── 되짚은 횟수(오답·원작과 다른 선택) ── */
+function miss(label){const E=G.ex;E.wrong=(E.wrong||0)+1;if(label){const s=String(label).replace(/\s+/g," ").slice(0,52);if(!E.missed.includes(s)){E.missed.push(s);if(E.missed.length>8)E.missed.shift()}}writeSave()}
+
+/* ── 이야기 지도: 두 편의 사건을 같은 때끼리 나란히 ── */
+const SMAP=[
+  {t:"전생",link:1,hr:{ch:1,s:"동해 용왕의 셋째 아들. 용녀와 혼인하여 오던 길에 요괴를 만나, 어려서 신통을 부리지 못하고 달아난다."},bell:{ch:1,s:"남해 용왕의 딸. 요괴와 싸우다 힘이 다해 죽는다."}},
+  {t:"태어남",hr:{ch:1,s:"장공 부부의 아들로 태어나지만 피란길에 버려지고, 장삼이 업어다 기른다."},bell:{ch:1,s:"효부 막 씨의 꿈에 선관들이 보배를 주고, 금빛 방울로 태어난다. 버려도 굴러 돌아온다."}},
+  {t:"자라며",hr:{ch:2,s:"장삼이 죽자 변 씨가 모질게 부린다."},bell:{ch:2,s:"무손이 훔쳐 갔다가 봉변을 당하고, 지현(장공)이 깨뜨리려 하나 상하지 않는다."}},
+  {t:"뇌양 관아",hr:null,bell:{ch:3,s:"보은초로 장공 부인(해룡의 어머니)을 살려 ‘금령’이란 이름을 얻고, 족자를 물어다 준 뒤 떠난다."}},
+  {t:"눈보라 치는 밤",link:1,hr:{ch:2,s:"언 방이 여름처럼 덥고, 못다 찧은 방아가 다 찧어져 있다. 방울 같은 것을 처음 본다."},bell:{ch:4,s:"오색 명주의 힘으로 해룡의 방을 덥히고 방아를 대신 찧는다."}},
+  {t:"구호동",link:1,hr:{ch:2,s:"범이 나오는 골짜기로 보내지지만, 방울이 범을 쓰러뜨리고 밭을 갈아 준다."},bell:{ch:4,s:"달려드는 범 두 마리를 받아 쓰러뜨리고 번개같이 밭을 간다."}},
+  {t:"누명과 불",link:1,hr:{ch:3,s:"소룡 대신 살인 누명을 쓰고 옥에 갇혔다 풀려나고, 불타는 집을 떠난다."},bell:{ch:4,s:"옥에서도 금빛으로 감싸고, 불길 속에서 지킨 뒤 앞길을 인도한다."}},
+  {t:"봉래동",link:1,hr:{ch:4,s:"삼켜진 금령을 구하러 굴에 들어가 보검으로 요괴를 죽이고, 공주를 구해 부마가 된다."},bell:{ch:5,s:"요괴에게 삼켜지지만 배 속에서 요괴를 앓게 한다."}},
+  {t:"북방의 전쟁",link:1,hr:{ch:5,s:"호각의 계교로 불길에 갇혔다가 살아나 흉노를 무찌른다."},bell:{ch:5,s:"불길을 무릅쓰고 들어가 찬바람으로 불을 물리친다."}},
+  {t:"다시 만남",link:1,hr:{ch:5,s:"족자와 칠성 사마귀로 부모를 되찾고, 금령과 혼인한다."},bell:{ch:5,s:"보배를 돌려주고 허물을 벗어 금령 소저가 되고, 해룡과 혼인한다."}}
+];
+function chapterDone(){const d=G.ex.done;if(G.route in d)d[G.route]=Math.max(d[G.route]||0,G.ch);writeSave()}
+function smapHTML(hl){const d=G.ex.done;
+  const cell=(r,row)=>{const c=row[r];if(!c)return `<td class="none">·</td>`;const o=r==="hr"?"bell":"hr",own=d[r]>=c.ch,peek=!own&&row.link&&row[o]&&d[o]>=row[o].ch;
+    if(own||peek)return `<td class="${r}${peek?" peek":""}"><em>${ROUTES[r].name} 편 제${c.ch}장</em>${esc(c.s)}${peek?`<i>그때 ${r==="hr"?"해룡":"금방울"} 쪽에서는 이랬어요</i>`:""}</td>`;
+    return `<td class="lock">?<em>${ROUTES[r].name} 편 제${c.ch}장에서</em></td>`};
+  return `<table class="smapt"><tr><th>때</th><th>해룡</th><th>금방울</th></tr>${SMAP.map(row=>`<tr class="${row.link?"lk":""}${hl&&hl(row)?" new":""}"><th>${esc(row.t)}${row.link?"<span>↔ 같은 때</span>":""}</th>${cell("hr",row)}${cell("bell",row)}</tr>`).join("")}</table>`}
+function storyMapSheet(){return sheet(`<div class="sheet"><span class="eb">이야기 지도</span><h2>지금까지의 이야기</h2><p class="note">방금 마친 장의 일이 지도에 채워졌어요. 노란 줄이 있는 칸은 해룡과 금방울이 <b>같은 때</b>에 겪은 일이에요.</p>${smapHTML(row=>row[G.route]&&row[G.route].ch===G.ch)}<div class="row"><button class="btn pri" data-go="1">계속 ▶</button></div></div>`)}
+
+/* ── 서술 특징 도장 ── */
+const TRAITS={
+  prelife:{n:"전생과 환생",d:"용궁의 인물이 인간 세상에 다시 태어나, 전생에 못다 한 인연을 이번 생에서 잇는 짜임이에요."},
+  dream:{n:"꿈의 예언",d:"꿈에 신령이나 선관이 나타나 앞일을 알려 주고, 그 말이 그대로 이루어져요."},
+  fantasy:{n:"전기성(비현실적 사건)",d:"현실에서는 일어날 수 없는 신기한 일이 벌어져요."},
+  comment:{n:"편집자적 논평",d:"서술자가 이야기에 끼어들어 자기 생각이나 느낌을 직접 말해요."},
+  exag:{n:"과장된 표현",d:"은혜나 공을 아주 큰 것에 견주어 부풀려 말해요."},
+  morph:{n:"변신",d:"모습을 바꾸는 일이 사건의 고비가 돼요."},
+  boeun:{n:"은혜 갚기(보은)",d:"받은 은혜는 반드시 갚아요. 인물들의 행동을 움직이는 힘이에요."}
+};
+function trait(id,quote){const T=G.ex.traits,first=!T[id];T[id]=T[id]||[];const l=G.lastLine,q=quote||(l&&l.t?l.t.replace(/\s+/g," ").slice(0,64):"");
+  if(q&&!T[id].includes(q)&&T[id].length<3)T[id].push(q);writeSave();
+  if(first){toast("서술 특징 도장",TRAITS[id].n);const b=$("#bMap");if(b){b.classList.remove("ping");void b.offsetWidth;b.classList.add("ping")}}}
+function traitsHTML(){const T=G.ex.traits;return `<div class="stamps">${Object.entries(TRAITS).map(([id,t])=>T[id]?`<div class="stamp on"><b>${esc(t.n)}</b>${esc(t.d)}${T[id].map(q=>`<q>${esc(q)}${q.length>=64?"…":""}</q>`).join("")}</div>`:`<div class="stamp"><b style="color:#b9a987">?</b>아직 찍지 못한 도장</div>`).join("")}</div>`}
+
+/* ── 숨은 소품 ── */
+const FIND_T={
+  hut_well:"우물이다. 막 씨는 새벽마다 이 물을 길어 시어머니 무덤 앞에 올렸다.",
+  hut_jars:"무손네 장독대다. 독마다 그득하다. 동네에서 가장 넉넉한 집이다.",
+  hut_house:"이웃 초가다. 금빛 방울을 구경하고 온 이야기로 떠들썩하다.",
+  gw_hyeong:"죄인을 묶어 놓고 매를 치는 형틀이다. 나무가 반들반들하게 닳았다.",
+  gw_lantern:"석등이다. 밤이면 뜰을 밝힌다.",
+  mt_paw:"커다란 짐승의 발자국이다. 이 산에는 범이 산다.",
+  mt_cairn:"돌무더기다. 산을 넘는 이들이 무사하기를 빌며 돌을 하나씩 얹었다.",
+  fm_jars:"변 씨네 장독대다. 해룡의 몫은 늘 식은 밥 한 덩이였다.",
+  fm_well:"우물이다. 해룡은 날마다 물을 길어 독을 채웠다.",
+  fm_house:"이웃집이다. 해룡의 효성을 칭찬하는 소리가 담 너머로 들린다.",
+  cv_jars:"요괴가 모아 둔 술독이다. 비린내가 진동한다.",
+  cv_lantern:"꺼지지 않는 푸른 등불이다. 사람이 켠 불이 아니다.",
+  ct_silk:"비단 가게다. 공주를 잃은 뒤로 성안에 웃음이 사라졌다고 한다.",
+  ct_gate:"남경의 성문이다. 방을 보려는 사람들이 쉴 새 없이 드나든다.",
+  bt_tent:"원수의 장막이다. 펼쳐 둔 지도에 산과 골짜기가 빽빽이 그려져 있다.",
+  bt_banner:"군기다. 북풍에 세차게 펄럭인다.",
+  dr_lantern:"선계의 석등이다. 불빛이 구름처럼 피어오른다."
+};
+const NFIND=Object.keys(FIND_T).length;
+function hideIn(m,pick,id){const o=typeof pick==="function"?m.objs.find(pick):pick;if(!o||o.use)return;if(!m.objs.includes(o))m.objs.push(o);o.find=id;
+  o.use=async()=>{await say("narr",FIND_T[id]);if(!G.ex.finds.includes(id)){G.ex.finds.push(id);writeSave();addXp(5);toast("숨은 소품",`${G.ex.finds.length}/${NFIND} 찾았어요`)}}}
+OBJDRAW.paw=(o,sx,sy)=>{for(const [x,y] of [[3,9],[9,4]]){Px(sx+x,sy+y+2,4,3,"#5a4a3a");Px(sx+x-1,sy+y,2,2,"#5a4a3a");Px(sx+x+1,sy+y-1,2,2,"#5a4a3a");Px(sx+x+4,sy+y,2,2,"#5a4a3a")}};
+OBJDRAW.cairn=(o,sx,sy)=>{Px(sx+1,sy+9,14,6,KO);Px(sx+2,sy+10,12,4,"#8f8a7e");Px(sx+3,sy+5,10,5,KO);Px(sx+4,sy+6,8,3,"#a39d90");Px(sx+5,sy+1,6,5,KO);Px(sx+6,sy+2,4,3,"#b8b2a4");Px(sx+2,sy+10,4,1,"#b8b2a4")};
+(()=>{const w=(name,fn)=>{const f=window[name];window[name]=function(){const m=f.apply(this,arguments);try{fn(m)}catch(e){}return m}};
+  w("buildHut",m=>{hideIn(m,o=>o.k==="well","hut_well");hideIn(m,o=>o.k==="jars","hut_jars");hideIn(m,o=>o.k==="choga"&&!o.id,"hut_house")});
+  w("buildGamyeong",m=>{hideIn(m,o=>o.k==="hyeong","gw_hyeong");hideIn(m,o=>o.k==="lantern","gw_lantern")});
+  w("buildMount",m=>{hideIn(m,{k:"paw",x:18,y:13,w:1,h:1},"mt_paw");hideIn(m,{k:"cairn",x:23,y:20,w:1,h:1},"mt_cairn")});
+  w("buildFarm",m=>{hideIn(m,o=>o.k==="jars","fm_jars");hideIn(m,o=>o.k==="well","fm_well");hideIn(m,o=>o.k==="choga"&&!o.id,"fm_house")});
+  w("buildCave",m=>{hideIn(m,o=>o.k==="jars","cv_jars");hideIn(m,o=>o.k==="lantern","cv_lantern")});
+  w("buildCity",m=>{hideIn(m,o=>o.k==="stall"&&o.goods==="silk","ct_silk");hideIn(m,o=>o.k==="gate","ct_gate")});
+  w("buildBattle",m=>{hideIn(m,o=>o.k==="tent"&&o.id==="tent","bt_tent");hideIn(m,o=>o.k==="banner","bt_banner")});
+  w("buildDream",m=>{hideIn(m,o=>o.k==="lantern","dr_lantern")});
+})();
+/* 아직 찾지 못한 숨은 소품은 이따금 반짝임 */
+setInterval(()=>{if(document.hidden||!G.map||G.demo)return;for(const o of G.map.objs)if(o.find&&!G.ex.finds.includes(o.find)&&Math.random()<0.5)
+  addPart({k:"spark",x:o.x*T+o.w*T/2+Math.random()*10-5,y:o.y*T+2,vx:0,vy:-8,life:0.7,c:"#fff3a0"})},1500);
+
+/* ── 이야기 지도 패널 (지도·도장·숨은 소품·수료증) ── */
+function openStoryMap(){openPanel(`<span class="eb">이야기 지도</span><h2>누가, 언제, 무슨 일을</h2>
+  <p class="note">장을 마칠 때마다 한 칸씩 채워져요. 노란 줄이 있는 칸은 해룡과 금방울이 <b>같은 때</b>에 겪은 일이라, 한쪽 편을 마치면 그때 다른 쪽에서 있었던 일도 함께 보여요.</p>${smapHTML()}
+  <h3>서술 특징 도장 (${Object.keys(G.ex.traits).length}/${Object.keys(TRAITS).length})</h3>${traitsHTML()}
+  <h3>숨은 소품 (${G.ex.finds.length}/${NFIND})</h3><p class="note">마을과 산, 관아 곳곳의 물건을 살펴보세요(E). 이따금 반짝이는 것이 아직 살펴보지 않은 소품이에요.</p>
+  <div class="row"><button class="btn" data-cert>수료증 보기</button></div>`)}
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-cert]")){closePanel();certSheet()}});
+(()=>{const b=document.getElementById("bMap");if(b)b.onclick=openStoryMap})();
+
+/* ── 인물 관계도 ── */
+const REL_N={sage:[320,26],jang:[84,74],jangmom:[196,74],mak:[452,74],samrang:[566,74],hogak:[56,186],hr:[214,186],bell:[430,186],musun:[588,186],monster:[322,250],
+  jangsam:[56,300],byeon:[168,300],soryong:[168,366],princess:[296,300],emperor:[390,366],empress:[490,300]};
+const REL_E=[["jang","hr","친아버지"],["jangmom","hr","친어머니"],["jang","jangmom","부부"],["jangsam","hr","길러 줌"],["byeon","hr","박대"],["jangsam","byeon","부부"],["byeon","soryong","아들"],
+  ["hr","bell","전생의 짝 · 도움 · 혼인"],["mak","bell","어머니"],["mak","samrang","부부(혼령)"],["hr","princess","혼인"],["emperor","princess","딸"],["emperor","empress","부부"],["empress","bell","양녀"],
+  ["monster","princess","납치"],["monster","bell","삼킴"],["hogak","hr","적장"],["musun","bell","훔침"],["bell","jangmom","보은초로 살림"],["sage","bell","보배를 줌"]];
+function relGraph(){const met=new Set(G.met||[]);const side=id=>["bell","mak","samrang","musun","empress"].includes(id)?"#b3362b":["monster","hogak"].includes(id)?"#5a4a3a":id==="sage"?"#8a6a1f":"#2b4a6f";
+  const E=REL_E.map(([a,b,l])=>{const A=REL_N[a],B=REL_N[b],on=met.has(a)&&met.has(b);return `<line x1="${A[0]}" y1="${A[1]}" x2="${B[0]}" y2="${B[1]}" stroke="${on?"#6b5f4c":"#d9cfb6"}" stroke-width="${on?1.4:1}" ${on?"":'stroke-dasharray="3 4"'}/>`+(on?`<text x="${(A[0]+B[0])/2}" y="${(A[1]+B[1])/2-3}" text-anchor="middle" font-size="10.5" fill="#6b5f4c" stroke="#f7f2e4" stroke-width="3" paint-order="stroke">${l}</text>`:"")}).join("");
+  const Nn=Object.entries(REL_N).map(([id,[x,y]])=>{const on=met.has(id),p=PEOPLE_DB[id],big=id==="hr"||id==="bell",w=big?92:78,h=big?30:24,c=side(id);
+    return `<rect x="${x-w/2}" y="${y-h/2}" width="${w}" height="${h}" rx="3" fill="${on?"#fff":"#efe8d6"}" stroke="${on?c:"#cdbf9d"}" stroke-width="${big?2.4:1.4}"/><text x="${x}" y="${y+4.5}" text-anchor="middle" font-size="${big?14:12}" fill="${on?c:"#b9a987"}">${on?esc(p.n):"?"}</text>`}).join("");
+  return `<svg class="relg" viewBox="0 0 640 392" role="img" aria-label="인물 관계도" font-family="IBM Plex Sans KR,sans-serif">${E}${Nn}</svg><p class="note">만난 인물만 이름이 나타나고, 두 사람을 모두 만나면 둘 사이의 관계가 이어져요.</p>`}
+
+/* ── 영웅의 일생 맞추기 ── */
+const HERO={
+  hr:[["고귀한 혈통","동해 용왕의 셋째 아들이자, 벼슬하던 장공의 아들이다."],["비정상적 출생","붉은 기운이 어머니의 몸에 들고, 아버지가 청룡 꿈을 꾼 뒤에 태어난다."],["어려서 버려짐","피란길에 부모가 길가에 두고 떠난다."],["구출·양육자","도적 무리에 있던 장삼이 업고 달아나 친자식처럼 기른다."],["자라서 겪는 위기","변 씨의 박대, 구호동의 범, 살인 누명, 불타는 집을 겪는다."],["조력자의 도움","위기마다 금방울이 나타나 구해 준다."],["위기 극복과 승리","요괴를 죽여 부마가 되고, 흉노를 쳐 위왕이 되며, 부모를 되찾는다."]],
+  bell:[["고귀한 혈통","남해 용왕의 딸이다."],["비정상적 출생","죽은 삼랑의 혼령이 다녀간 뒤, 사람이 아닌 금빛 방울로 태어난다."],["어려서 버려짐","어머니 막 씨가 멀리 버리고, 물에 던지고, 아궁이에 넣는다."],["비범한 능력","선관들이 준 보배로 덥고 차게 하고, 하루에 천 리를 가고, 바람을 부린다."],["자라서 겪는 위기","무손에게 도둑맞고, 관가에서 철퇴와 기름가마를 겪고, 요괴에게 삼켜진다."],["위기 극복","칼에도 기름에도 상하지 않고, 요괴의 배 속에서 요괴를 앓게 한다."],["승리","허물을 벗고 금령공주가 되어 해룡과 혼인한다."]]
+};
+function heroGame(){return new Promise(res=>{const L=HERO[G.route];if(!L)return res();const order=L.map((_,i)=>i).sort(()=>Math.random()-0.5);let cur=0,msg="";
+  const who=G.route==="hr"?"해룡":"금방울";const v=mgOpen("");const box=v.querySelector(".sheet");box.classList.add("herobox");
+  const fin=()=>{mgClose(v);res()};
+  const paint=()=>{box.dataset.cur=cur;const done=cur>=L.length;
+    box.innerHTML=`<span class="eb">영웅의 일생</span><h2>${who}의 삶을 영웅의 일생에 맞추기</h2><p class="note">영웅 소설의 주인공은 비슷한 길을 걸어요. 붉은 줄이 쳐진 단계에 들어갈 ${who}의 일을 아래에서 고르세요.</p>
+    <ol class="hstages">${L.map(([s,e],i)=>`<li class="${i<cur?"ok":i===cur?"cur":""}"><b>${esc(s)}</b>${i<cur?`<span>${esc(e)}</span>`:""}</li>`).join("")}</ol>
+    ${done?`<p class="gl"><b>견주어 보기</b>${G.route==="hr"?"해룡은 위기를 제힘만으로 넘지 않아요. 고비마다 금방울의 도움이 있었지요. 그래서 이 이야기의 제목이 「금방울전」이에요.":"금방울은 남의 도움 없이 제 능력으로 시련을 이겨요. 다만 그 능력은 주로 해룡을 돕는 데 쓰이고, 허물을 벗은 뒤에는 더 쓰이지 않아요."}</p><div class="row" style="justify-content:center"><button class="btn pri" data-go>계속 ▶</button></div>`
+      :`<div class="resp">${msg||"&nbsp;"}</div><div class="hpool">${order.filter(i=>i>=cur).map(i=>`<button class="btn" data-hs="${i}">${esc(L[i][1])}</button>`).join("")}</div>`}`};
+  paint();
+  box.addEventListener("click",e=>{if(e.target.closest("[data-go]")){fin();return}const b=e.target.closest("[data-hs]");if(!b)return;const k=+b.dataset.hs;
+    if(k===cur){sfx("correct");msg="";cur++;paint()}else{sfx("wrong");miss("영웅의 일생: "+L[cur][0]);msg=`그 일은 ‘${esc(L[k][0])}’ 단계에 들어가요.`;paint();shk(box)}});
+  UI.onKey=e=>{if(cur>=L.length&&["Enter","Space"].includes(e.code))fin();return true};
+})}
+
+/* ── 수료증 ── */
+function certSheet(){return new Promise(res=>{const E=G.ex;UI.modal=true;setBodyTalking(true);sfx("stamp");
+  const v=document.createElement("div");v.className="veil";const tot=Object.keys(PEOPLE_DB).length;const d=new Date();
+  const both=E.done.bell>=5&&E.done.hr>=5;
+  v.innerHTML=`<div class="sheet cert"><span class="eb">수료증</span><h2>굴러라, 금방울</h2>
+  <div class="who"><input id="cname" maxlength="14" placeholder="학번 이름" value="${esc(E.name||"")}" autocomplete="off"></div>
+  <p style="margin:6px 0">위 사람은 고전 소설 「금방울전」의 이야기를<br><b>${both?"금방울 편과 장해룡 편 모두":(E.done.bell>=5?"금방울 편":E.done.hr>=5?"장해룡 편":"아직 한창")}</b> ${both||E.done.bell>=5||E.done.hr>=5?"끝까지 따라갔습니다.":"따라가는 중입니다."}</p>
+  <table><tr><td>금방울 편</td><td>${E.done.bell||0} / 5장</td></tr><tr><td>장해룡 편</td><td>${E.done.hr||0} / 5장</td></tr>
+  <tr><td>공덕</td><td>${G.xp||0} · ${xpRank()}</td></tr><tr><td>모은 원문</td><td>${(G.rec||[]).length}줄</td></tr>
+  <tr><td>만난 인물·소재</td><td>${(G.met||[]).filter(id=>PEOPLE_DB[id]).length} / ${tot}</td></tr><tr><td>서술 특징 도장</td><td>${Object.keys(E.traits).length} / ${Object.keys(TRAITS).length}</td></tr>
+  <tr><td>숨은 소품</td><td>${E.finds.length} / ${NFIND}</td></tr><tr><td>되짚은 횟수</td><td>${E.wrong||0}번</td></tr></table>
+  ${E.missed.length?`<p class="note" style="margin-bottom:2px">다시 볼 것</p><ul>${E.missed.slice(-4).map(s=>`<li>${esc(s)}${s.length>=52?"…":""}</li>`).join("")}</ul>`:""}
+  <div><span class="seal">굴러라<br>금방울</span></div><p class="note">${d.getFullYear()}년 ${d.getMonth()+1}월 ${d.getDate()}일 · 이름을 적고 이 화면을 찍어 내세요.</p>
+  <div class="row" style="justify-content:center"><button class="btn pri" data-done>닫기</button></div></div>`;
+  $("#ui").appendChild(v);const inp=v.querySelector("#cname");inp.addEventListener("input",()=>{E.name=inp.value;writeSave()});
+  UI.onKey=()=>false;
+  v.addEventListener("click",e=>{if(e.target.closest("[data-done]")){v.remove();UI.modal=!!document.querySelector("#title,.veil,.dlg");UI.onKey=null;setBodyTalking(false);res()}});
+})}
+
+/* ── 전생: 동해 호숫가의 혼인길 ── */
+function buildSea(){const m=newMap(30,15,"~");rect(m,0,6,30,3,"=");for(const x of [3,9,15,21,27]){m.objs.push({k:"lantern",x,y:5,w:1,h:1},{k:"lantern",x,y:9,w:1,h:1})}return m}
+async function proIntro(){const F=G.f;F.pro=1;const isB=G.route==="bell";const m=buildSea();G.map=m;G.dream=true;G.night=false;G.snow=false;
+  place(5,7,"r",isB?"seonae":"kid2");G.player.fade=null;G.lock=false;holdSet(G.player,null);
+  m.npcs.push(npc("mate",isB?"kid2":"seonae",isB?"용자":"용녀",5,isB?6:8,"r",null,{fixed:1}),
+    npc("a1","maid","시녀",3,6,"r",null,{fixed:1,hold:"silk"}),npc("a2","maid","시녀",3,8,"r",null,{fixed:1,hold:"fan"}),npc("a3","maid","시녀",2,7,"r",null,{fixed:1,hold:"redfan"}),
+    npc("pmon","monster","남섬진주 요괴",21,7,"l",null,{fixed:1,show:()=>F.proMon}));
+  setMood("home");
+  await card("전생","동해 호숫가의 혼인길","이 이야기는 사람으로 태어나기 전의 일에서 시작한다.\n동해 용왕의 셋째 아들(용자)과 남해 용왕의 딸(용녀)이 혼인하여, 신부를 맞아 돌아오는 길이었다.","h0");
+  await say("narr",isB?"당신은 남해 용왕의 딸, 용녀예요. 신랑인 용자와 나란히 물 위의 길을 가고 있어요.":"당신은 동해 용왕의 셋째 아들, 용자예요. 신부인 용녀와 나란히 물 위의 길을 가고 있어요.");
+  G.zone={test:x=>x>=12,fn:proAttack};
+  setObj(isB?"신랑과 나란히 동쪽으로 가자 →":"신부와 나란히 동쪽으로 가자 →");
+  tip("방향키나 WASD로 움직여요. 오른쪽으로 걸어가 보세요.");
+  clearInterval(proIntro.tm);proIntro.tm=setInterval(()=>{if(!G.f.pro||G.f.proMon||!G.map||!N("mate")){clearInterval(proIntro.tm);return}const p=G.player;
+    for(const [id,off] of [["mate",0],["a1",-2],["a2",-2],["a3",-3]]){const n=N(id);if(!n||n.moving||n.queue.length)continue;const want=p.tx+off;if(n.tx<want)n.queue.push("r");else if(n.tx>want&&off<0)n.queue.push("l");else n.dir=p.dir==="l"?"l":"r"}},120);
+}
+async function proAttack(){const F=G.f,isB=G.route==="bell",p=G.player,mate=N("mate"),mon=N("pmon");G.zone=null;
+  clearInterval(proIntro.tm);for(const n of G.map.npcs)n.queue=[];
+  mon.tx=Math.min(26,p.tx+4);mon.ty=7;F.proMon=1;setMood("trial");sfx("thunder");G.shake=5;G.flash=0.6;p.dir="r";
+  setNear(mate,[[p.tx,p.ty-1],[p.tx,p.ty+1],[p.tx-1,p.ty]]);mate.dir="r";
+  await say("narr","문득 물결이 뒤집히며 남섬진주의 요괴가 길을 막아섰다. 요괴는 용녀를 앗아가려 한다.");
+  sfx("roar");
+  await say("narr","용자와 용녀는 힘을 합쳐 요괴와 맞섰다.");
+  await duelGame({foe:"monster",name:"남섬진주 요괴",ent:mon,title:"용자와 용녀 대 요괴",foeHp:10,myHp:4,rounds:2,meName:isB?"용녀":"용자",meImg:"p_dragons",
+    atkNote:"용의 기운이 붉은 칸에 들어왔을 때 치세요. 한가운데면 회심의 일격!",hitMsg:"용의 기운이 요괴를 쳤다!",missMsg:"막지 못했다! 요괴의 발톱이 스친다.",wrongMsg:"엉뚱한 쪽을 막았다! 요괴의 발톱이 스친다.",recoverMsg:"휘청였지만 다시 일어섰다.",
+    intro:"요괴가 주홍 같은 입을 벌리고 달려든다. 둘이 힘을 합쳐 막아야 한다!",draw:"아무리 쳐도 요괴는 꿈쩍하지 않는다. 힘이 다해 간다…"});
+  const yn=isB?p:mate,yj=isB?mate:p;
+  lungeAt(mon,yn);sfx("slash");yn.hurt=0.7;G.shake=6;G.flash=0.5;await sleep(450);yn.down=1;sfx("thud");
+  await say("narr","용녀는 힘이 다하여 쓰러지고 말았다.");
+  for(let i=10;i>=0;i--){yn.fade=i/10;await sleep(60)}
+  await say("narr","어린 용자는 아직 신통을 부리지 못하였다. 요괴에게 쫓겨 뭍으로 달아날 수밖에 없었다.");
+  yj.dir="l";sfx("swish");for(let i=0;i<5;i++){if(!blocked(yj.tx-1,yj.ty,yj))yj.tx--;await sleep(90)}
+  burst(yj);sfx("magic");G.flash=1;yj.fade=0;
+  await card("전생","못다 한 인연","용녀의 넋은 하늘로 올라가고, 용자는 붉은 기운이 되어 사람의 집으로 숨어들었다.\n두 사람이 못다 한 인연은 인간 세상에서 다시 이어진다.");
+  trait("prelife");
+  p.down=0;p.fade=null;G.dream=false;G.ex.pro=1;
+  const S=G.route==="bell"?B1:H1;S.setup();await S.intro();
+}
+
+/* ── 말 ── */
+function drawHorse(e,sx,sy,t,layer){
+  const A=e.moving?Math.sin(((e.step%2)+e.prog)*Math.PI):0,side=e.dir==="l"||e.dir==="r",fl=e.dir==="l",bob=e.moving?Math.round(Math.abs(A)):0,y=sy-bob;
+  const X=(x,w)=>fl?2*sx+16-x-w:x;const C1="#8a5a34",C2="#6d4426",M="#2b1c12",RD="#b53a2c";
+  if(side){
+    if(!layer){ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(sx+8,sy+15,15,3,0,0,Math.PI*2);ctx.fill();
+      const l=Math.round(A*2);for(const [x,o] of [[sx-5,l],[sx-2,-l],[sx+13,-l],[sx+16,l]]){Px(X(x+o,2),y+9,2,6+bob,C2);Px(X(x+o,2),sy+14,2,1,M)}
+      Px(X(sx-11,3),y+3,3,8,M);Px(X(sx-9,3),y+2,3,3,M);
+      Px(X(sx-7,26),y+1,26,9,KO);Px(X(sx-6,24),y+2,24,7,C1);Px(X(sx-6,24),y+7,24,2,C2);
+      Px(X(sx+14,7),y-5,7,9,KO);Px(X(sx+15,5),y-4,5,8,C1);Px(X(sx+14,2),y-5,2,8,M);
+      Px(X(sx+18,9),y-9,9,7,KO);Px(X(sx+19,7),y-8,7,5,C1);Px(X(sx+24,2),y-6,2,3,C2);Px(X(sx+21,1),y-7,1,1,"#ffffff");Px(X(sx+19,2),y-11,2,3,C1);
+      Px(X(sx+17,7),y-5,7,1,RD)}
+    else{Px(X(sx+1,14),y+1,14,8,KO);Px(X(sx+2,12),y+2,12,5,RD);Px(X(sx+2,12),y+7,12,1,"#d4b04a");Px(X(sx+7,2),y+8,2,3,"#3a2a18")}
+  }else{const dn=e.dir==="d";
+    if(!layer){ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(sx+8,sy+15,9,3,0,0,Math.PI*2);ctx.fill();
+      const l=Math.round(A);Px(sx+2,y+10,3,5+bob-l,C2);Px(sx+11,y+10,3,5+bob+l,C2);
+      Px(sx+1,y-3,14,15,KO);Px(sx+2,y-2,12,13,C1);
+      if(!dn){Px(sx+4,y-11,8,9,KO);Px(sx+5,y-10,6,8,C1);Px(sx+7,y-10,2,8,M);Px(sx+4,y-13,2,3,C1);Px(sx+10,y-13,2,3,C1)}}
+    else if(dn){Px(sx+1,y+1,3,6,RD);Px(sx+12,y+1,3,6,RD);Px(sx+4,y+2,8,11,KO);Px(sx+5,y+3,6,9,C1);Px(sx+5,y+10,6,2,C2);Px(sx+5,y+5,1,1,"#ffffff");Px(sx+10,y+5,1,1,"#ffffff");Px(sx+7,y+3,2,3,M);Px(sx+4,y,2,3,C1);Px(sx+10,y,2,3,C1)}
+    else{Px(sx+2,y+3,12,8,C1);Px(sx+1,y+2,14,2,RD);Px(sx+7,y+5,2,9,M)}
+  }
+}
+function ride(e,on){if(!e)return;e.mount=on?1:0;if(e===G.player)G.pspeed=on?0.12:null}
+
 /* ══════════════ 금방울 편 ══════════════ */
 /* 제1장 꿈과 출생 */
 const B1={
@@ -2485,6 +2729,7 @@ const B1={
       S("hong","홍의 선관",18,6,"l","hong"),S("cheong","청의 선관",7,6,"r","cheong"),S("baek","백의 선관",7,11,"r","baek"),S("heuk","흑의 선관",18,11,"l","heuk"),S("hwang","황의 선관",15,4,"d","hwang"));
   },
   async intro(){
+    if(!G.f.pro)return proIntro();
     await card("제1장","꿈과 출생","먼 옛날, 남해 용왕의 딸(용녀)은 동해 용왕의 셋째 아들과 혼인하여 가던 길에 요괴를 만나 목숨을 잃었다. 원통한 혼은 옥황상제께 호소하였다.\n그 무렵 인간 세상의 한 초막에서는, 버림받은 아내가 홀로 시어머니의 무덤을 지키고 있었다.");
     await say("narr","이 때 성남 조계촌에 김삼랑이란 사람이 있으니 호협 방탕하여 그의 처 막씨의 얼굴이 곱지 못하므로 조가의 여자를 취하여 돌아오지 아니하고 그 곳 백성이 되니 막씨는 조금도 서러워하는 일이 없고 늙은 어미를 봉양할새 …… 천고에 효부 많으나 막씨에게 미칠 이 없더라.",{o:1});
     meet("mak");meet("samrang");
@@ -2492,7 +2737,7 @@ const B1={
     await say("kid2","우리 사부께서 옥제의 명을 받자와 그대에게 전할 것이니 바삐 나아가 뵈오라.",{o:1,name:"동자"});
     await say("sage","그대의 대절과 지효를 옥제께서 아시고 극진히 표창하라 하시매 자식을 점지코자 하였더니 대장부 죽은지라 …… 마침 남해 용녀와 동해 용자가 일찍이 횡사하여 옥제께 보수하기를 발원하였은즉 …… 용자는 마침 좋은 곳이 있어 구처하였으되 용녀의 거처를 정하지 못하였더니 이제 그대를 주나니 십육 년 후에 그 얼굴을 보리니 이제 자세히 보았다가 후일 차등이 없게 하라.",{o:1,name:"백발 노옹"});
     tip("하늘이 막 씨의 효성을 갚으려 남해 용녀를 막 씨의 자식으로 보낸다는 말이에요. ‘용자는 마침 좋은 곳이 있어 구처하였으되’는 동해 용왕의 아들은 이미 다른 집에 태어날 곳을 정했다는 뜻이지요.");
-    meet("sage");meet("s_dream");
+    meet("sage");meet("s_dream");trait("dream");
     await say("narr","하고 공중을 향하여 용녀를 부르니 이윽고 선녀가 내려와 서거늘 막씨가 그를 보니 천고에 드문 여인이더라.",{o:1});
     for(let i=0;i<=10;i++){G.player.fade=i/10;await sleep(60)}
     G.player.fade=null;G.lock=false;G.f.seonae=1;G.f.gifts=0;
@@ -2560,6 +2805,7 @@ async function b1Samrang(n){
   await card("금방울의 탄생","아이가 아니라 금빛 방울","막 씨가 낳은 것은 사람이 아니라 금빛이 찬란한 방울이었다.\n이제부터 당신은 금방울이에요. 방향키로 굴러다닐 수 있어요.","g1");
   tip("알이나 기이한 모습으로 태어나는 것은 주몽 신화 같은 난생 설화와 닮았어요. 비범한 출생은 영웅 이야기의 첫 단계예요.");
   await say("narr","막씨 크게 놀라며 괴이히 여기고 손으로 누르되 터지지 아니하고, 돌로 깨쳐도 깨지지 아니하거늘,",{o:1});
+  trait("fantasy");
   for(;;){const c=await choose("bell","막 씨가 방울을 집어 멀리 버리려 한다. 금방울은 어떻게 할까?",["멀리 버려져도 막 씨를 따라 굴러간다.","버려진 곳에 가만히 머문다."],{think:1});
     if(c===0)break;await notOriginal("bell","원작의 금방울은 버려져도 버려져도 막 씨를 따라 굴러와요. 막 씨와 끊을 수 없는 인연이 있다는 뜻이지요.")}
   F.throws=1;sfx("swish");teleport(31,11,"l");sfx("thud");
@@ -2763,6 +3009,7 @@ async function b3Jang(){
   await say("narr","이 때 홀연히 금광이 찬란한 가운데로 쫓아 방울이 문득 밖에서 굴러 들어와 부인의 시체 앞에 앉기에. 모두 울음을 그치고 보니 풀잎 같은 것을 물어다가 놓고 가는 것이더라.",{o:1});
   await give(G.player,N("jang"),"herb");
   await say("narr","모두 괴이하게 여기어 집어 보니 나뭇잎 가운데다가 가늘게 쓰였으되, '보은초'라 하였으매, 보은초가 무엇인고 공이 내심으로 헤아려 생각하되, '막씨가 보은하도다'하고, 크게 기뻐하여 부인의 입에 넣으니, 한 식경 후에 부인이 몸을 운동하고 돌아눕거늘",{o:1});
+  trait("boeun");
   G.flash=0.6;sfx("heal");holdSet(N("jang"),null);N("jmom").down=0;G.map.objs=G.map.objs.filter(o=>o.k!=="bed");setMood("home");
   await say("jangmom","자고 나매 정신이 생생하여졌사옵니다.",{o:1});
   tip("장공은 보은초를 막 씨가 갚는 은혜라 여겨요. 지현 시절 막 씨를 풀어 주고 집을 지어 준 일의 보답이지요.");
@@ -2790,6 +3037,7 @@ const B4={
     meet("hr");meet("byeon");meet("soryong");meet("jangsam");
     await say("narr","이 때가 엄동설한이라 변씨는 소룡과 더불어 더운 방에서 자고 해룡은 방아질만 하라 하니, 해룡이 할 수 없어 밤이 새도록 방아질 하니 홑것만 입은 아이가 어찌 기한을 견디리오.",{o:1});
     tip("‘홑것만 입은 아이가 어찌 기한(굶주림과 추위)을 견디리오’처럼 서술자가 직접 안타까움을 드러내는 것을 편집자적 논평이라고 해요.");
+    trait("comment","홑것만 입은 아이가 어찌 기한을 견디리오");
     setObj("추위에 웅크린 해룡에게 굴러가자");
   }
 };
@@ -2883,6 +3131,7 @@ const B5={
 async function b5Monster(){
   const F=G.f;if(F.eaten)return;F.eaten=1;meet("monster");setMood("trial");await morph(N("mon"));
   await say("narr","이때 문득 벽력같은 소리가 진동하며 한 곳에 금털 돋힌 짐승이 주홍 같은 입을 벌리고 달려들어 자기를 해하려고 하므로, 해룡이 급히 피하고자 하더니 금령이 굴러 내달아 막으니, 그 짐승이 몸을 흔들며 변하여 아홉 머리를 가진 악귀가 되어 금령을 집어삼키고 들어가는 것이었으니,",{o:1});
+  trait("morph");
   G.flash=1;sfx("gulp");G.shake=5;
   await say("hrkid","이번에는 반드시 금령이 죽었도다.",{o:1});
   await say("narr","요괴의 배 속은 캄캄했다. 그러나 금령은 죽지 않았다.");
@@ -2907,7 +3156,7 @@ async function b5Empress(){
   tip("황후가 금령의 공을 크게 치하해요. 여성인 금령이 나라에 공을 세우는 모습은 사회 활동이 막혀 있던 당시 여성 독자들이 바라던 모습이기도 했어요.");
   await card("북방의 전쟁","불길에 갇힌 원수","부마가 된 해룡은 흉노를 치러 원수가 되어 떠났다. 그러나 적장 호각의 계교에 빠져, 화약을 싼 허수아비들이 불타는 골짜기에 갇히고 말았다.","h4");
   const m=buildBattle();G.map=m;G.night=true;setMood("trial");place(6,14,"r");
-  m.npcs.push(npc("hr","hrgen","원수 해룡",34,13,"l",b5Saved,{mark:()=>F.path&&!F.saved,fixed:1,hold:"spear"}));
+  m.npcs.push(npc("hr","hrgen","원수 해룡",34,13,"l",b5Saved,{mark:()=>F.path&&!F.saved,fixed:1,hold:"spear",mount:1}));
   const fires=[];for(let y=9;y<=18;y++){fires.push([28,y]);fires.push([31,y])}fires.push([33,13],[35,13],[34,12],[34,14]);
   fires.forEach(([x,y],i)=>m.objs.push({k:"fire",x,y,w:1,h:1,id:"f"+i,use:o=>b5Wind(o)}));
   for(const [x,y] of [[26,9],[26,18],[30,10],[30,17],[36,9],[36,18]])m.objs.push({k:"scarecrow",x,y,w:1,h:1});
@@ -2929,6 +3178,7 @@ async function b5Saved(){
   await say("narr","이 때 문득 서남간으로부터 금빛이 떠오르며 금령이 화광을 무릅쓰고 들어와 원수 앞에서 찬바람을 일으키니 충천하던 불꽃이 원수의 앞에는 일지 아니하고 다른 곳으로 몰려가더라.",{o:1});
   G.map.objs=G.map.objs.filter(o=>o.k!=="fire");G.flash=0.5;
   await say("hrgen","너의 후은을 생각할 양이면 태산이 가볍고 강과 바다가 얕은지라 어찌 다 갚으리오.",{o:1,name:"원수 해룡"});
+  trait("exag","태산이 가볍고 강과 바다가 얕은지라");
   await say("narr","해룡은 불길을 빠져나가 계교 위에 계교를 써서 호각을 물리쳤다. 그리고 금령은, 전쟁이 끝나던 밤 황궁에 족자 하나를 남기고 사라졌다.");
   await say("empress","간밤에 금령이 이것을 두고 간 곳이 없으니 가장 괴이하도다.",{o:1});
   tip("금령이 장공 부부에게 물어다 준 것과 같은 족자를 이번에는 해룡에게 남겼어요. 두 족자가 만나면 무슨 일이 일어날까요?");
@@ -2942,9 +3192,11 @@ async function b5Home(){
   await say("narr","이 때 막씨는 금령을 잃고 주야로 슬퍼할 뿐 아니라 장공의 부부 또한 슬퍼함을 마지 아니하였더니 하루는 야심토록 서로 말할새 홀연 금령이 문을 열고 들어오거늘 모두 반가움을 이기지 못하고 막씨는 뛰어나와 금령을 안고 반겨함을 어찌 다 측량하리오.",{o:1});
   G.dream=true;F.sage=1;sfx("tip");G.flash=0.6;
   await say("sage","그대들의 액운이 다하였으니 오래지 아니하여 아들이 이 길로 갈 것이니 때를 잃지 말라.",{o:1,name:"선관 (꿈속)"});
+  trait("dream");
   await say("sage","그대는 아마도 여아의 얼굴을 보면 자연 알리라.",{o:1,name:"선관 (꿈속)"});
   await say("sage","너는 인연이 다하였으며 인간에 부귀영화 극진할지라.",{o:1,name:"선관 (꿈속)"});
   await say("narr","하고 손으로 어루만지니 문득 방울이 터지며 한 명의 옥골 선녀가 나오니 또한 선관이 이르되",{o:1});
+  trait("morph");
   for(let k=0;k<3;k++){G.player.hurt=0.3;sfx("jingle");await sleep(380)}burst(G.player);burst(G.player);
   G.flash=1;sfx("poof");sfx("magic");G.player.look="seonae";holdSet(G.player,["silk","fan","redfan","flag"]);
   await say("sage","우리가 주었던 보배를 도로 달라.",{o:1,name:"선관 (꿈속)"});
@@ -2971,6 +3223,7 @@ const H1={
       npc("jangsam","jangsam","장삼",12,21,"r",h1Jangsam,{fixed:1,show:()=>F.bandits,mark:()=>F.bandits&&!F.taken}));
   },
   async intro(){
+    if(!G.f.pro)return proIntro();
     await card("제1장","피란과 이별","원나라가 망하고 명나라가 일어서던 어지러운 때. 한 선비 부부가 산속으로 몸을 피하고 있었다.");
     await say("narr","화설 대원 지정말에 장원이라 하는 자 있었는데 벼슬이 겨우 한원에 있더니 원나라가 망하고 대명이 중흥하매 시절을 염려하여 태안주의 이릉산에 숨어 살았는데,",{o:1});
     meet("jang");meet("jangmom");
@@ -2982,7 +3235,7 @@ const H1={
     await say("narr","얼마 뒤 장공은 또 꿈을 꾸었다. 청룡이 내려와 비늘을 벗고 선비가 되어 말하였다.");
     await say("sage","자식의 급한 것을 구하여 주시니 은혜 난망이라. …… ‘용자도 인세에 내어 보내어 미진한 인연을 다하라.’ 하시니 내 금광에게 청하여 그대 집에 정하였노라.",{o:1,name:"청룡이 변한 선비"});
     await say("narr","과연 그 달부터 태기가 있어 십 삭이 차매 일개 옥동을 생하니 얼굴이 남전산에서 보던 선동과 같은지라. …… 이름을 해룡이라 하였고 자는 응천이라 하다.",{o:1});
-    meet("hr");meet("s_dream");
+    meet("hr");meet("s_dream");trait("dream");
     tip("‘미진한 인연을 다하라’: 전생에 못다 한 인연을 이번 생에서 마저 이루라는 뜻이에요. 해룡의 인연은 누구와 이어질까요?");
     await say("narr","호사다마는 고금의 상사라.",{o:1});
     await card("피란","쫓기는 사람들","천하가 어지러워 여기저기 도적과 군사가 일어났다. 장공 부부도 어린 해룡을 업고 피란길에 올랐다.","h1");
@@ -3080,6 +3333,7 @@ async function h2Byeon(){
     npc("bell","bell","방울 같은 것",15,7,"d",h2Bell,{fixed:1,show:()=>F.warm,mark:()=>F.warm&&!F.seenBell}));
   obj("mill").use=h2Mill;obj("hrRoom").use=h2Room;obj("mill").mark=()=>!F.milled;obj("hrRoom").mark=()=>F.milled&&!F.warm;
   await say("narr","이 때가 엄동설한이라 변씨는 소룡과 더불어 더운 방에서 자고 해룡은 방아질만 하라 하니, 해룡이 할 수 없어 밤이 새도록 방아질 하니 홑것만 입은 아이가 어찌 기한을 견디리오.",{o:1});
+  trait("comment","홑것만 입은 아이가 어찌 기한을 견디리오");
   setObj("방앗간에서 방아를 찧자");
 }
 async function h2Mill(){
@@ -3093,6 +3347,7 @@ async function h2Room(){
   const F=G.f;if(!F.milled||F.warm)return say("narr",F.warm?"방 안이 대낮처럼 밝고 여름처럼 덥다.":"내 방이다. 눈보라가 들이친다.");
   F.warm=1;sfx("magic");putNear({k:"grain"},[[15,9],[12,9],[15,10],[12,10]]);
   await say("narr","추움을 견디지 못하여 자기 방에 들어가 쉬려 하였으나 설한풍은 들이치고 덮을 것은 없는지라. 몸을 옹송그려 엎디었더니, 홀연히 방속이 밝기가 대낮과 같은지라 여름과 같이 더워 온몸에 땀이 나거늘,",{o:1});
+  trait("fantasy");
   await say("narr","생이 한편 놀라고 한편 괴이히 여겨 즉시 일어나 자세히 살펴보니 오히려 동녘이 아직 채 트이지 않았는데 백설이 뜰에 가득하더라. 방앗간에 나아가 보니 밤에 못다 찧은 것이 다 찧어 그릇에 담겨 있거늘,",{o:1});
   tip("방 안은 여름처럼 덥고, 밖은 여전히 눈보라. 못다 찧은 방아까지 누가 다 찧어 놓았을까요?");
   setObj("방 안의 침상 위에 무언가 있다. 가까이 가 보자");
@@ -3275,11 +3530,13 @@ async function h4Monster(){
   const F=G.f;if(F.eaten)return;F.eaten=1;setMood("trial");meet("monster");
   const b=N("bell");setNear(b,[[20,9],[19,9],[21,9]]);await morph(N("mon"));
   await say("narr","이때 문득 벽력같은 소리가 진동하며 한 곳에 금털 돋힌 짐승이 주홍 같은 입을 벌리고 달려들어 자기를 해하려고 하므로, 해룡이 급히 피하고자 하더니 금령이 굴러 내달아 막으니, 그 짐승이 몸을 흔들며 변하여 아홉 머리를 가진 악귀가 되어 금령을 집어삼키고 들어가는 것이었으니,",{o:1});
+  trait("morph");
   G.flash=1;sfx("gulp");G.shake=5;
   await say("hrkid","이번에는 반드시 금령이 죽었도다.",{o:1});
   await say("sage","금령을 구하지 않고 이리 방황하느뇨? 급히 구하라.",{o:1,name:"공중의 소리"});
   await say("hrkid","하늘이 가르치니, 부득이 구하려니와 그러나 빈 손뿐이요. 몸에는 촌철 하나 없으니 어이 대적하리오.",{o:1,think:1});
   await say("hrkid","금령이 없으면 내 어찌하여 살아났으리오,",{o:1,think:1});
+  trait("boeun");
   tip("무기 하나 없지만, 늘 자기를 살려 준 금령을 저버릴 수 없다는 마음. 해룡은 은혜에 보답하려 요괴의 굴로 들어가요.");
   setObj("요괴가 사라진 굴(북쪽)로 들어가자");
 }
@@ -3300,6 +3557,7 @@ async function h4Maids(){
   await say("narr","해룡은 풀포기 뒤에 몸을 숨기고 여자들의 이야기를 엿들었다. 여자들은 피 묻은 옷을 빨며 근심에 싸여 있었다.");
   await say("maid","우리 대왕이 전일에는 용력이 절인하고 신통이 거룩하여 당해낼 자 없더니 오늘은 나가시더니 홀연 속을 앓고 돌아와 피를 무수히 토하고 기절하니,",{o:1,name:"시녀"});
   await say("maid","우리 공주 낭랑이 간밤에 한 꿈을 얻으니, 하늘에서 한 선관이 내려와 이르시되 ‘내일 다섯 시에 일위 수재가 이곳에 와서 이 악귀를 잡아 없이하고 공주 낭랑을 구하여 돌아갈 터이니 염려 말라 하시고 또 이 사람은 다른 수재가 아니라 동해 용왕의 아들로서 그대와 속세 연분이 있음에 그대가 이렇게 됨이 또한 천수라 인력으로 못하나니 천명을 부디 어기지 말고 순순이 따르라.’ 당부하고 이른 말을 누설치 말라 하시더라. 그러더니 오늘 다섯 시가 되도록 소식이 없으니 그런 꿈도 허사가 아닌가 하노라.",{o:1,name:"다른 시녀"});
+  trait("dream");
   tip("공주의 꿈은 앞일을 예언해요. ‘동해 용왕의 아들’, 곧 해룡이 와서 요괴를 없애고 공주를 구하며, 공주와 인연을 맺는다는 것이지요.");
   await say("hrkid","그대들은 놀라지 마라. 내 여기 들어옴이 다른 일이 아니라 악귀를 없애고자 들어왔으니 아무 의심을 두지 말고 그 악귀 있는 곳을 자세히 가리키라.",{o:1});
   await say("maid","그대 덕분에 우리들을 살려내어 공주 낭랑과 모두 살아나서 각각 고향으로 돌아가게 되면 어찌 이런 덕택이 있겠습니까?",{o:1,name:"시녀"});
@@ -3319,7 +3577,7 @@ async function h4Fight(){
     F.swordOut=1;sfx("tip");
     setObj("미인이 내민 보검을 받아 들자");return;
   }
-  await timing(1,{eb:"요괴 퇴치",title:"보검으로 요괴를 찔러라",desc:"칼끝이 붉은 칸 안에 들어왔을 때 누르세요."});
+  await duelGame({foe:"monster",name:"요괴",ent:N("mon"),title:"보검을 든 해룡 대 요괴",foeHp:6,myHp:5,atkNote:"칼끝이 붉은 칸에 들어왔을 때 찌르세요. 한가운데면 회심의 일격!",hitMsg:"보검이 요괴의 가슴을 찔렀다!",missMsg:"막지 못했다! 몸부림치는 요괴의 발톱이 스친다.",wrongMsg:"엉뚱한 쪽을 막았다! 요괴의 발톱이 스친다.",recoverMsg:"휘청였지만 다시 보검을 고쳐 잡았다.",intro:"앓던 요괴가 피를 토하며 몸부림친다. 발톱을 막아 내고 보검으로 가슴을 찔러라!",win:"보검이 요괴의 가슴 깊이 박혔다. 요괴가 거꾸러진다!"});
   lungeAt(G.player,N("mon"));G.shake=5;sfx("slash");sfx("roar");FX.push({k:"hit",e:N("mon"),t0:performance.now()/1000,dur:0.8,word:"푹!",col:"#f07a6a"});await sleep(500);F.killed=1;
   await say("narr","해룡이 즉시 그 보검을 받아 들고 달려들어 그 요귀의 가슴을 무수히 찌르니 그 짐승이 그제야 죽어 늘어지는지라. 자세히 보니 금터럭 돋힌 암퇘지이어늘, 가슴을 헤치고 본즉 문득 금령이 굴러 나오니,",{o:1});
   G.map.npcs.push(npc("bell2","bell","금령",17,9,"d",null,{fixed:1}));sfx("jingle");
@@ -3369,6 +3627,7 @@ async function h4Official(){
 async function h4Emperor(){
   const F=G.f;if(F.buma)return;F.buma=1;
   await say("emperor","경의 공을 논할진댄 태산이 낮고 강과 바다가 얕은지라 그 갚을 바를 알지 못하노라.",{o:1});
+  trait("exag","태산이 낮고 강과 바다가 얕은지라");
   tip("공을 태산과 강·바다에 견주어 높이는 과장된 표현이에요.");
   await say("emperor","몽사를 의논할진대 이는 공주와 천장배필이라 경으로 공주를 싫다 말고 공주 비록 덕이 없으나 족히 건질 것을 받들 것이니 경은 그리 알라.",{o:1});
   tip("천자는 공주의 꿈을 근거로 해룡과 공주를 하늘이 정한 짝(천장배필)이라 여기고 해룡을 사위(부마)로 삼아요.");
@@ -3396,9 +3655,9 @@ async function h5Emperor(){
   await say("emperor","짐이 경의 재주와 마음을 알거니와 전장은 사지라 흉지에 보내고 짐의 마음이 어찌 편하리오. 황후와 낭랑이 즐겨 허락지 아니하리라.",{o:1});
   await say("hrgen","신이 듣자오니 국난을 당하되 어찌 편히 있으리있까! 천자를 괘념하여 국가 대사를 그릇하오리까!",{o:1});
   await card("향령 아래","두 진이 마주 서다","해룡은 원수가 되어 대군을 이끌고 북으로 향하였다. 남창에서 흉노의 선봉장 호각과 마주쳤다.");
-  const m=buildBattle();G.map=m;place(10,14,"r");holdSet(G.player,"spear");sfx("drum");
-  m.npcs.push(npc("hog","hogak","호각",20,13,"l",h5Hogak,{fixed:1,mark:()=>!F.duel,show:()=>!F.lured}),npc("seol","hogak","설만춘",22,12,"l",null,{fixed:1,hold:"bow"}),
-    npc("yang","guard","이양춘",9,12,"r",null,{fixed:1,hold:"sword",show:()=>!F.trap}),npc("man","guard","장만",8,15,"r",null,{fixed:1,hold:"sword",show:()=>!F.trap}));
+  const m=buildBattle();G.map=m;place(10,14,"r");holdSet(G.player,"spear");sfx("drum");ride(G.player,1);
+  m.npcs.push(npc("hog","hogak","호각",20,13,"l",h5Hogak,{fixed:1,mount:1,mark:()=>!F.duel,show:()=>!F.lured}),npc("seol","hogak","설만춘",22,12,"l",null,{fixed:1,mount:1,hold:"bow"}),
+    npc("yang","guard","이양춘",9,12,"r",null,{fixed:1,mount:1,hold:"sword",show:()=>!F.trap}),npc("man","guard","장만",8,15,"r",null,{fixed:1,mount:1,hold:"sword",show:()=>!F.trap}));
   meet("hogak");setObj("적장 호각과 맞서자");
 }
 async function h5Hogak(){
@@ -3444,6 +3703,7 @@ async function h5Trap(){
   const b=npc("bell","bell","금령",p.tx-3,p.ty,"r",h5Bell,{fixed:1,mark:()=>F.out&&!F.saved});G.map.npcs.push(b);powerPop("redfan",b);
   G.map.objs=G.map.objs.filter(o=>!(o.k==="fire"&&o.y===p.ty&&o.x<p.tx));G.flash=0.5;sfx("wind");
   await say("hrgen","너의 후은을 생각할 양이면 태산이 가볍고 강과 바다가 얕은지라 어찌 다 갚으리오.",{o:1});
+  trait("exag","태산이 가볍고 강과 바다가 얕은지라");
   tip("해룡의 목숨을 살린 것은 또다시 금령이에요. 그런데 세상에 알려지는 공은 누구의 것이 될까요?");
   await walk(b,"llllllllll");F.out=1;
   setObj("열린 길로 금령을 따라 불길을 빠져나가자");
@@ -3456,14 +3716,14 @@ async function h5Bell(){
     "맞아요. 해룡은 진을 몰래 옮겨 두었어요.","아니에요. 원문을 보세요.");
   await say("hogak","장해룡이 비록 하늘로 솟고 땅으로 숨는 재주가 있다하나 어찌 오늘의 불길을 벗어나며 어찌 죽기를 면하였으리오. 오늘밤에 가히 원진을 치리라.",{o:1});
   await say("narr","이날 밤에 호각이 군을 거느리고 가만히 원진으로 들어가니 진중에 사람은 하나도 없고 빈 채만 남았는지라",{o:1});
-  const h=npc("hog2","hogak","호각",7,12,"d",null,{fixed:1});G.map.npcs.push(h);place(7,14,"u");
+  const h=npc("hog2","hogak","호각",7,12,"d",null,{fixed:1,mount:1});G.map.npcs.push(h);place(7,14,"u");
   sfx("boom");G.shake=3;await say("hrgen","적장 호각은 나를 아느냐?",{o:1});
   await say("narr","호각이 황망한 중에 언뜻 보니 장원수라 호각이 대경실색하며 미처 손을 놀리지 못하고",{o:1});
   await duelGame({foe:"hogak",name:"호각",ent:h,title:"매복한 원수, 놀란 호각",foeHp:5,myHp:5,intro:"빈 진에 든 호각 앞을 원수가 막아선다. 끝을 낼 때다!",win:"원수의 칼이 번쩍이자 호각이 말 아래로 쓰러졌다!"});
   addXp(30);burst(h);sfx("cheer");G.map.npcs=G.map.npcs.filter(n=>n!==h);
   await say("narr","원수의 칼이 번쩍이자 호각은 쓰러졌고, 남은 적장들도 이양춘과 장만에게 모두 무찔렸다.");
   await card("개선","천하의 명장","원수는 크게 이기고 돌아왔다. 천자는 십 리 밖까지 나와 원수를 맞았다.");
-  const m=buildGamyeong();G.map=m;G.night=false;setMood("pyong");place(11,12,"u");holdSet(G.player,null);
+  const m=buildGamyeong();G.map=m;G.night=false;setMood("pyong");place(11,12,"u");holdSet(G.player,null);ride(G.player,0);
   m.npcs.push(npc("emp","emperor","천자",11,6,"d",null,{fixed:1}),npc("empress","empress","황후",13,6,"d",h5Scroll,{fixed:1,hold:"scroll",mark:()=>!F.scroll}));
   await say("emperor","나이 어린 대장이 이같이 크게 이기었으니 실로 천하의 명장이로다.",{o:1});
   await say("narr","‘평북장군 위국공좌승상’을 봉하시니 원수가 굳이 사양하되 상이 불윤하시고",{o:1});
@@ -3498,6 +3758,7 @@ async function h5Byeon(){
     await notOriginal("hreosa","원작의 해룡은 옛일을 조금도 마음에 두지 않아요. 오히려 길러 준 은혜를 갚지요.")}
   F.forgave=1;
   await say("hreosa","이것이 약소하오나 십삼 년 간의 양육의 은혜를 표현하옵나니 이 땅에서 살고 매년 한번씩 찾으라.",{o:1});
+  trait("boeun");
   holdAdd(G.player,"pouch");await sleep(300);await give(G.player,N("byeon"),"pouch");
   await say("narr","변씨 모자 멀리 나와 전송하고 들어가 서로 어사의 후덕을 일컫고 남방의 갑부가 되어 매양 어사의 은덕을 잊지 못하니",{o:1});
   tip("해룡은 자신을 괴롭힌 변 씨를 용서하고 은혜를 갚아요. 너그럽고 의리 있는 영웅의 모습이지요.");
@@ -3512,6 +3773,7 @@ async function h5Dream(){
   const F=G.f;if(F.dream)return;F.dream=1;
   await say("sage","그대 비록 소년 등과하여 영걸의 풍으로 이름이 사해에 차고 위세가 천하에 떨치었으되 부모를 곁에 두고 찾지 아니하고 이는 사람의 도리를 찾지 못함이라 내 그대를 위하여 부끄러워하노라.",{o:1,name:"백발노인"});
   await say("narr","하니 어사가 이 말을 듣고 비감을 이기지 못하여 노인을 붙잡고 다시 묻고자 하다가 깨달으니 남가일몽이더라.",{o:1});
+  trait("dream");
   G.dream=false;G.night=false;
   tip("백발노인의 꾸짖음은 부모가 바로 가까이 있음을 일깨우는 말이에요. 꿈에서 깬 어사의 행동이 부모와의 만남으로 이어져요.");
   setObj("다시 잠들지 못한 어사, 날이 밝자 본관(사또)을 찾아가자");
@@ -3534,6 +3796,7 @@ async function h5Jang(){
   await sevenGame();
   G.flash=0.6;setMood("home");
   await say("narr","어사가 이 말을 듣고 문득 실성 통곡하더라. 본관이 또한 통곡함을 마지 아니하니 어찌 슬프고 기이하지 아니하리오.",{o:1});
+  trait("comment","어찌 슬프고 기이하지 아니하리오");
   await say("hreosa","소자가 정성이 부족하여 이제야 부모를 만나 뵈오니 그 죄는 씻을 길이 없으나 하늘이 살피사 우리에게 금령을 지시하여 이 일이 있게 하였도다.",{o:1});
   tip("족자와 칠성 사마귀가 부자 상봉의 증거가 되었어요. 해룡은 이 모든 일이 하늘의 뜻을 받든 금령의 조화라고 말해요.");
   await aliasGame(aliasPick(5));
