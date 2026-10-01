@@ -1,3 +1,8 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>굴러라, 금방울</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -360,6 +365,8 @@ body.talking .pad,body.talking .act{display:none}
 }
 @media (prefers-reduced-motion:reduce){.dlg .more,.toast,.shake{animation:none}}
 </style>
+</head>
+<body>
 
 <canvas id="cv"></canvas>
 <div class="hud" id="hud" hidden>
@@ -870,7 +877,7 @@ function interact(){
   const o=G.map.objs.find(o=>o.use&&!(o.hide&&o.hide())&&x>=o.x&&x<o.x+o.w&&y>=o.y&&y<o.y+o.h);
   if(o){run(()=>o.use(o));return}
 }
-async function run(fn){if(G.busy)return;G.busy=true;try{await fn()}catch(err){console.error(err)}G.busy=false;updateHUD()}
+async function run(fn){if(G.busy)return;G.busy=true;try{await fn()}catch(err){console.error(err)}G.skip=false;G.busy=false;updateHUD()}
 
 /* ═════════ 갱신 ═════════ */
 const STEP=0.2;
@@ -1022,6 +1029,7 @@ function setBodyTalking(on){document.body.classList.toggle("talking",on)}
 function recAdd(who,t){if(!G.rec.some(r=>r.t===t)){G.rec.push({ch:G.ch,route:G.route,who:NAMES[who]||who,t,g:glossOf(t)||""});$("#nRec").textContent=G.rec.length;writeSave()}}
 function say(who,text,opt){
   opt=opt||{};histAdd(who,text,opt);if(who!=="narr"||opt.o)G.lastLine={who:opt.name||NAMES[who]||"",t:text};
+  const seenB=typeof seenLine==="function"&&!G.demo&&seenLine(text);if(G.skip){if(seenB){if(opt.o)recAdd(who,text);return Promise.resolve()}G.skip=false}
   return new Promise(res=>{
     UI.modal=true;setBodyTalking(true);
     const name=who==="narr"?"":(opt.name||NAMES[who]||who);
@@ -1033,13 +1041,15 @@ function say(who,text,opt){
     const segs=emphSegs(full);const tick=()=>{if(done)return;i+=2;tx.innerHTML=segHTML(segs,i);if(i>=chars.length){finish()}else setTimeout(tick,18)};
     const finish=()=>{done=true;tx.innerHTML=segHTML(segs,1e9);const gl=el.querySelector(".gl");if(gl)gl.hidden=false;if(!el.querySelector(".more"))el.insertAdjacentHTML("beforeend",'<span class="more">▼ 계속</span>')};
     const next=()=>{if(!done){finish();return}sfx("blip");el.remove();UI.modal=false;UI.onKey=null;setBodyTalking(false);res()};
-    el.addEventListener("click",next);
+    if(seenB)el.insertAdjacentHTML("afterbegin",'<button class="skipb" data-skip>이미 본 대목 넘기기 ▶▶</button>');
+    if(opt.o&&typeof wsTag==="function"&&wsTag(text)){const nm=el.querySelector(".nm");if(nm)nm.insertAdjacentHTML("beforeend",`<span class="wsb">활동지 지문 ${wsTag(text)}</span>`)}
+    el.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("[data-skip]")){G.skip=true;done=true}next()});
     UI.onKey=e=>{if(["KeyE","Space","Enter","KeyZ"].includes(e.code)){next();return true}return false};
     if(opt.o)recAdd(who,text);
     tick();
   });
 }
-function choose(who,text,opts,opt){G.lastLine=null;
+function choose(who,text,opts,opt){G.lastLine=null;G.skip=false;
   opt=opt||{};
   return new Promise(res=>{
     UI.modal=true;setBodyTalking(true);
@@ -1060,7 +1070,7 @@ function choose(who,text,opts,opt){G.lastLine=null;
   });
 }
 function sheet(html,opts){
-  sfx("page");
+  G.skip=false;sfx("page");
   return new Promise(res=>{
     UI.modal=true;setBodyTalking(true);
     const v=document.createElement("div");v.className="veil";v.innerHTML=html;$("#ui").appendChild(v);
@@ -1555,7 +1565,7 @@ function glossOf(t){
 /* ═════════ 미니게임 모음 ═════════ */
 const ARR={ArrowUp:"u",KeyW:"u",ArrowDown:"d",KeyS:"d",ArrowLeft:"l",KeyA:"l",ArrowRight:"r",KeyD:"r"};
 const ARG={u:"↑",d:"↓",l:"←",r:"→"};
-function mgOpen(html){UI.modal=true;setBodyTalking(true);const v=document.createElement("div");v.className="veil";v.innerHTML=`<div class="sheet mg">${html}</div>`;$("#ui").appendChild(v);return v}
+function mgOpen(html){G.skip=false;UI.modal=true;setBodyTalking(true);const v=document.createElement("div");v.className="veil";v.innerHTML=`<div class="sheet mg">${html}</div>`;$("#ui").appendChild(v);return v}
 function mgClose(v){v.remove();UI.modal=false;UI.onKey=null;setBodyTalking(false);if(typeof addXp==="function"&&!G.demo)addXp(10)}
 function shk(el){if(!el)return;el.classList.remove("shake");void el.offsetWidth;el.classList.add("shake")}
 const PAD4=`<div class="pad4"><button data-a="u">↑</button><button data-a="l">←</button><button data-a="d">↓</button><button data-a="r">→</button></div>`;
@@ -2498,6 +2508,7 @@ G.ex=Object.assign({done:{bell:0,hr:0},traits:{},finds:[],wrong:0,missed:[],name
 .smapt tr.lk>th:first-child{border-left:4px solid #d4b04a}
 .smapt tr.new td,.smapt tr.new th{animation:smnew 1.2s ease-out 2}
 @keyframes smnew{0%{box-shadow:inset 0 0 0 3px #f2c94c}100%{box-shadow:inset 0 0 0 0 #f2c94c}}
+.smapt .btn{padding:2px 8px;font-size:12px;margin:1px 2px 1px 0}
 .stamps{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px;margin:8px 0}
 .stamp{border:2px dashed var(--line);padding:8px 10px;font-family:var(--ui);font-size:13px;line-height:1.6;color:var(--muted)}
 .stamp.on{border:2px solid var(--seal);color:var(--ink);background:#fff}
@@ -2603,6 +2614,11 @@ setInterval(()=>{if(document.hidden||!G.map||G.demo)return;for(const o of G.map.
 /* ── 이야기 지도 패널 (지도·도장·숨은 소품·수료증) ── */
 function openStoryMap(){openPanel(`<span class="eb">이야기 지도</span><h2>누가, 언제, 무슨 일을</h2>
   <p class="note">장을 마칠 때마다 한 칸씩 채워져요. 노란 줄이 있는 칸은 해룡과 금방울이 <b>같은 때</b>에 겪은 일이라, 한쪽 편을 마치면 그때 다른 쪽에서 있었던 일도 함께 보여요.</p>${smapHTML()}
+  <h3>활동지 지문은 어디에 나올까</h3><p class="note">활동지의 세 지문과 같은 대목에는 대화 상자에 <b>활동지 지문 Ⅰ·Ⅱ·Ⅲ</b> 표시가 붙어요. 활동지에 실린 글과 표현이 조금 다를 수 있어요. 단추를 누르면 그 장부터 시작해요.</p>
+  <div class="tw2"><table class="smapt"><tr><th>지문</th><th>해룡 편</th><th>금방울 편</th></tr>
+  <tr><th>Ⅰ<span>출생과 수난</span></th><td><button class="btn" data-ch="hr:2">제2장</button> 변 씨의 박대, 눈보라 치는 밤</td><td><button class="btn" data-ch="bell:1">제1장</button> 삼랑과 출생 · <button class="btn" data-ch="bell:4">제4장</button> 눈보라 치는 밤</td></tr>
+  <tr><th>Ⅱ<span>범과 요괴</span></th><td><button class="btn" data-ch="hr:2">제2장</button> 구호동 · <button class="btn" data-ch="hr:4">제4장</button> 봉래동</td><td><button class="btn" data-ch="bell:4">제4장</button> 구호동 · <button class="btn" data-ch="bell:5">제5장</button> 요괴</td></tr>
+  <tr><th>Ⅲ<span>부마와 재회</span></th><td><button class="btn" data-ch="hr:4">제4장</button> 끝(천자의 치하) · <button class="btn" data-ch="hr:5">제5장</button> 끝(꿈과 족자)</td><td><button class="btn" data-ch="bell:5">제5장</button> 황후의 치하</td></tr></table></div>
   <h3>서술 특징 도장 (${Object.keys(G.ex.traits).length}/${Object.keys(TRAITS).length})</h3>${traitsHTML()}
   <h3>숨은 소품 (${G.ex.finds.length}/${NFIND})</h3><p class="note">마을과 산, 관아 곳곳의 물건을 살펴보세요(E). 이따금 반짝이는 것이 아직 살펴보지 않은 소품이에요.</p>
   <div class="row"><button class="btn" data-cert>수료증 보기</button></div>`)}
@@ -2661,7 +2677,9 @@ function certSheet(){return new Promise(res=>{const E=G.ex;UI.modal=true;setBody
 
 /* ── 전생: 동해 호숫가의 혼인길 ── */
 function buildSea(){const m=newMap(30,15,"~");rect(m,0,6,30,3,"=");for(const x of [3,9,15,21,27]){m.objs.push({k:"lantern",x,y:5,w:1,h:1},{k:"lantern",x,y:9,w:1,h:1})}return m}
-async function proIntro(){const F=G.f;F.pro=1;const isB=G.route==="bell";const m=buildSea();G.map=m;G.dream=true;G.night=false;G.snow=false;
+async function proIntro(){const F=G.f;F.pro=1;const isB=G.route==="bell";
+  if(G.ex.pro){const v=await sheet(`<div class="sheet"><span class="eb">전생</span><h2>동해 호숫가의 혼인길</h2><p>용자와 용녀가 혼인길에 요괴를 만나 헤어지는 이야기예요. 전에 본 적이 있어요.</p><div class="row"><button class="btn" data-go="play">다시 보기</button><button class="btn pri" data-go="skip">건너뛰고 제1장으로 ▶</button></div></div>`);
+    if(v==="skip"){const S0=isB?B1:H1;S0.setup();return S0.intro()}}const m=buildSea();G.map=m;G.dream=true;G.night=false;G.snow=false;
   place(5,7,"r",isB?"seonae":"kid2");G.player.fade=null;G.lock=false;holdSet(G.player,null);
   m.npcs.push(npc("mate",isB?"kid2":"seonae",isB?"용자":"용녀",5,isB?6:8,"r",null,{fixed:1}),
     npc("a1","maid","시녀",3,6,"r",null,{fixed:1,hold:"silk"}),npc("a2","maid","시녀",3,8,"r",null,{fixed:1,hold:"fan"}),npc("a3","maid","시녀",2,7,"r",null,{fixed:1,hold:"redfan"}),
@@ -2724,6 +2742,13 @@ function drawHorseOld(e,sx,sy,t,layer){
 }
 function ride(e,on){if(!e)return;e.mount=on?1:0;if(e===G.player)G.pspeed=on?0.12:null}
 
+/* ── 이미 본 대목 넘기기: 이 기기에서 한 번 본 말에는 넘기기 단추가 붙는다 ── */
+let SEEN=null;
+function seenLine(t){const E=G.ex;if(!E)return false;if(!SEEN)SEEN=new Set(E.seen||[]);let h=5381;for(let i=0;i<t.length;i++)h=((h<<5)+h+t.charCodeAt(i))|0;if(SEEN.has(h))return true;SEEN.add(h);(E.seen=E.seen||[]).push(h);return false}
+(()=>{const st=document.createElement("style");st.textContent=`.dlg .skipb{position:absolute;right:10px;top:-38px;font-family:var(--ui);font-size:13px;padding:6px 12px;background:rgba(241,234,216,.96);border:2px solid var(--ink2);box-shadow:0 3px 0 rgba(0,0,0,.35);cursor:pointer}
+.dlg .skipb:hover{background:#fff3d6}
+.dlg .wsb{font-family:var(--ui);font-size:11.5px;color:#fff;background:var(--indigo);padding:2px 8px;border-radius:10px;margin-left:8px;white-space:nowrap}`;document.head.appendChild(st)})();
+
 /* 금방울전 소품 그림 설정: [그림 파일, 왼쪽부터 든 것] · [기준(h 높이/w 너비), 크기(놀이 점), 손 위치] */
 const PICSHEETS=[["g_it1",["sword","spear","bow","hammer","axe","hoe"]],["g_it2",["broom","scroll","herb","fruit","bowl","pouch"]],["g_it3",["paper","book","brush","silk","fan","redfan"]],
   ["g_it4",["flag","wood","cangue","arrow","grain","powder"]],["g_it5",["scrollwall","swordwall","quilt","bed","pot","offer"]]];
@@ -2782,13 +2807,24 @@ for(const [k,fn] of Object.entries(PICPROPS)){const old=OBJDRAW[k];OBJDRAW[k]=(o
 /* 지닌 것 표시에도 같은 그림을 씀 */
 paintBag=function(){const el=document.getElementById("bag");if(!el)return;const hud=document.getElementById("hud");
   const a=(!G.player||G.demo||(hud&&hud.hidden))?[]:holdList(G.player).filter(id=>HELD[id]);
-  const sk=document.getElementById("skills");const ref=sk&&!sk.hidden?sk:hud&&hud.firstElementChild;if(ref){const b=ref.getBoundingClientRect().bottom;if(b>20&&b<220)el.style.top=Math.round(b+8)+"px"}
+  const sk=document.getElementById("skills"),narrow=innerWidth<=560;let base=hud&&!hud.hidden?(narrow?hud:hud.firstElementChild).getBoundingClientRect().bottom:0;
+  if(base>20&&base<320){if(sk&&!sk.hidden){sk.style.top=narrow?Math.round(base+6)+"px":"";base=sk.getBoundingClientRect().bottom}el.style.top=Math.round(base+8)+"px";
+    document.documentElement.style.setProperty("--below",Math.round(!narrow&&a.length?base+8+34:base)+"px")}
   const key=a.map(id=>id+(ITEMPIC[id]?"*":"")).join(",");el.hidden=!a.length;if(key===BAGKEY)return;BAGKEY=key;
   el.innerHTML=a.length?"<b>지닌 것</b>"+a.map(id=>`<span class="bi"><canvas width="48" height="66" data-i="${id}"></canvas>${HELD[id].n}</span>`).join(""):"";
   el.querySelectorAll("canvas").forEach(c=>{const id=c.dataset.i,g=c.getContext("2d"),p=ITEMPIC[id];
     if(p){const s=Math.min(44/p.width,62/p.height),w=p.width*s,h=p.height*s;g.imageSmoothingQuality="high";g.drawImage(p,(48-w)/2,(66-h)/2,w,h)}
     else{HC=g;try{g.scale(3,3);const sp=HELD[id];const tall=id==="spear"||id==="flag";if(tall){g.scale(0.62,0.62);sp.px(9,25,0)}else if(sp.pos){g.scale(0.58,0.58);sp.px(13,18,0)}else sp.px(8,id==="broom"?12:16,0)}finally{HC=null}}});
 };
+
+(()=>{const st=document.createElement("style");st.textContent=`.dlg .nm{flex-wrap:wrap;row-gap:2px}.dlg .nm b,.dlg .nm .think{white-space:nowrap}
+@media (max-width:560px){.tip{top:calc(var(--below,156px) + 8px);font-size:13px}.hb,.money{padding:5px 8px;font-size:12px}#bag{display:none!important}#mini{transform:none!important;bottom:calc(104px + env(safe-area-inset-bottom,0px))!important}.dlg .skipb{font-size:12px;padding:5px 9px}}`;document.head.appendChild(st)})();
+(()=>{const st=document.createElement("style");st.textContent="@media (max-height:480px){#bag{display:none!important}}";document.head.appendChild(st)})();
+
+/* 활동지 지문 표시 (mkws.js 로 만듦): 원문 줄의 앞 20글자 → 지문 */
+const WS_KEY=20;
+const WS_TAG={"막씨가 하루는 슬픔을 머금고 앉아 있":"Ⅰ","장부 나를 버리고 간 지가 거의 수십":"Ⅰ","내 과연 그대 뜻을 모르고 탕자의 마":"Ⅰ","하고 생시와 다름없이 수작하고 돌아간":"Ⅰ","막씨 크게 놀라며 괴이히 여기고 손으":"Ⅰ","다시 집어다가 멀리 버리고 돌아오니 ":"Ⅰ","또 다시 집어다 단단히 넣으니 물 위":"Ⅰ","내 팔자가 기구하여 이 같은 괴물을 ":"Ⅰ","아궁이를 닷새 후에 헤쳐 보니 방울이":"Ⅰ","하루는 막씨가 한데서 방아질을 하여 ":"Ⅰ","막씨가 기이히 여겨 남이 알까 걱정하":"Ⅰ","이 때가 엄동설한이라 변씨는 소룡과 ":"Ⅰ","추움을 견디지 못하여 자기 방에 들어":"Ⅰ","방앗간에 나아가 보니 밤에 못다 찧은":"Ⅰ","생이 잡으려 한즉 이리 미끈 달아나고":"Ⅰ","이것이 반드시 무심치 아니할지라 내 ":"Ⅰ","천상천하에 흰 눈이 가득하되 오직 해":"Ⅰ","홀연히 일진광풍이 일어나며 반시간이 ":"Ⅰ·Ⅱ","해룡이 분명 요술을 부리어 사람을 속":"Ⅰ·Ⅱ","우리 집의 전장이 구호동에 있더니 요":"Ⅰ·Ⅱ","인명은 재천이니 어찌 짐승에게 해를 ":"Ⅰ·Ⅱ","밭을 두어 이랑 갈 때 홀연히 바람이":"Ⅱ","이 때 홀연히 등뒤로부터 금방울이 내":"Ⅱ","방울이 번개같이 굴러다니며 한 시각이":"Ⅱ","이때 문득 벽력같은 소리가 진동하며 ":"Ⅱ","이번에는 반드시 금령이 죽었도다.":"Ⅱ","우리 대왕이 전일에는 용력이 절인하고":"Ⅱ","해룡이 이 형상을 보고 하수코자 하나":"Ⅱ","해룡이 즉시 그 보검을 받아 들고 달":"Ⅱ","저 금방울이 천지조화로 되었음에 재주":"Ⅱ","공주는 금령을 차마 손에 놓지 아니하":"Ⅲ","하늘이 너같은 영물을 내사 신통이 거":"Ⅲ","이 때 변씨는 해룡을 박대함이 나날이":"Ⅰ","생이 한편 놀라고 한편 괴이히 여겨 ":"Ⅰ","침상에 이전에 없던 북 만한 방울 같":"Ⅰ","요리 구르고 저리 굴러 잡히지 아니하":"Ⅰ","해룡이 얼어 죽었으리라.":"Ⅰ","해룡이 들어와 변씨에게 문후한 후에 ":"Ⅰ·Ⅱ","해룡은 이미 짐작하되 변씨는 더욱 신":"Ⅰ·Ⅱ","집안 어른이 돌아가시매, 가산이 점점":"Ⅰ·Ⅱ","속히 잘 다녀 오라.":"Ⅰ·Ⅱ","해룡이 조금도 두려워하지 아니하고 옷":"Ⅰ·Ⅱ","금령을 구하지 않고 이리 방황하느뇨?":"Ⅱ","하늘이 가르치니, 부득이 구하려니와 ":"Ⅱ","금령이 없으면 내 어찌하여 살아났으리":"Ⅱ","옷차림을 단단히 하고 한번 뛰어 들어":"Ⅱ","홀연히 천지가 밝아지고 해와 달이 고":"Ⅱ","자세히 본즉 문 위에 금자로 썼으되 ":"Ⅱ","우리 공주 낭랑이 간밤에 한 꿈을 얻":"Ⅱ","그대들은 놀라지 마라. 내 여기 들어":"Ⅱ","그대 덕분에 우리들을 살려내어 공주 ":"Ⅱ","그 짐승이 전각에 누워 앓다가 문득 ":"Ⅱ","너희 수십 명이 필경 다 요귀로 변하":"Ⅱ","우리들은 하나도 요괴가 아니오. 우리":"Ⅱ","경의 공을 논할진댄 태산이 낮고 강과":"Ⅲ","몽사를 의논할진대 이는 공주와 천장배":"Ⅲ","그대 비록 소년 등과하여 영걸의 풍으":"Ⅲ","하니 어사가 이 말을 듣고 비감을 이":"Ⅲ","문득 본 즉 벽에 족자가 자기 낭중에":"Ⅲ","족자의 그림이 무슨 뜻이 있는고?":"Ⅲ","뒤늦게야 한 자식을 낳았더니 난중에 ":"Ⅲ","하니라 어사가 이 말을 듣고 즉시 금":"Ⅲ","그 족자는 어디서 났사옵니까? 이상한":"Ⅲ","나도 금령의 말이 있노라.":"Ⅲ","족자도 금령이 물어온 것이요. 금령을":"Ⅲ","내 아이는 등에 일곱 사마귀 칠성을 ":"Ⅲ","어사가 이 말을 듣고 문득 실성 통곡":"Ⅲ","소자가 정성이 부족하여 이제야 부모를":"Ⅲ"};
+function wsTag(t){return WS_TAG[t.slice(0,WS_KEY)]||""}
 
 /* ══════════════ 금방울 편 ══════════════ */
 /* 제1장 꿈과 출생 */
@@ -3881,3 +3917,5 @@ async function h5Jang(){
   if(j&&j.route&&ROUTES[j.route]){const sv=loadSave()||{};G.rec=(sv.route===j.route?sv.rec:[])||[];startChapter(j.route,j.ch)}else showTitle()})();
 
 </script>
+</body>
+</html>
