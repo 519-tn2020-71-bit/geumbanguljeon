@@ -607,6 +607,7 @@ function loadAvatars(){
     const img=new Image();img.onload=()=>{try{AV[key]=cutSheet(img,key)}catch(e){AV[key]=null}};img.src=`art/${key}.png`;
   }
 }
+AVA_OF.horse="a_horse";AVA_H.a_horse=41;
 loadAvatars();
 function drawAvatar(e,v,sx,sy,t){
   const img=e.dir==="u"?v.u:e.dir==="d"?v.d:v.l,flip=e.dir==="r";
@@ -616,7 +617,7 @@ function drawAvatar(e,v,sx,sy,t){
   const A=e.moving?Math.sin(((e.step%2)+e.prog)*Math.PI):0;
   const bob=e.moving?-Math.round(Math.abs(A)):0;
   const breathe=!e.moving&&Math.sin(t*2.4+ph)>0.6?Q:0;
-  ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(cx,by,Math.max(6,w*0.36),2.6,0,0,Math.PI*2);ctx.fill();
+  if(!(e.mount&&v!==AV.a_horse)){ctx.fillStyle="rgba(0,0,0,.22)";ctx.beginPath();ctx.ellipse(cx,by,Math.max(6,w*0.36),2.6,0,0,Math.PI*2);ctx.fill()}
   ctx.save();ctx.translate(cx,by+bob);ctx.scale((flip?-1:1)/Q,1/Q);
   const x0=-Math.round(IW/2),top=-IH,half=Math.floor(IW/2);
   if(e.dir==="l"||e.dir==="r"){
@@ -959,7 +960,7 @@ function draw(t){
   const ents=m.npcs.filter(visible).concat(G.demo?[]:[G.player]);
   for(const e of ents){const [px,py]=entPos(e);dr.push({y:py+T+0.5,f:()=>{
     let sx=Math.round(px-cx);let sy=Math.round(py-cy);const ph=e.ph||0;if(e.lift)sy-=e.lift;if(e.dance){sy-=Math.round(Math.abs(Math.sin(t*5+ph))*3);e.dir=["d","l","d","r"][Math.floor(t*2.2+ph)%4]}if(e.lunge){const q=(performance.now()/1000-e.lunge.t0)/0.26;if(q>=1)e.lunge=null;else{const k=Math.sin(Math.PI*q)*5;sx+=Math.round(e.lunge.dx*k);sy+=Math.round(e.lunge.dy*k)}}if(e.hurt>0){e.hurt-=1/60;sx+=Math.round(Math.sin(t*70)*2)}
-    const ms=e.mount&&!e.down&&typeof drawHorse==="function"?sy:null;if(ms!=null){drawHorse(e,sx,ms,t,0);sy-=8}
+    const ms=e.mount&&!e.down&&typeof drawHorse==="function"?sy:null;if(ms!=null){drawHorse(e,sx,ms,t,0);sy-=18;sx+=e.dir==="l"?2:e.dir==="r"?-2:0}
     const av=AV[AVA_OF[e.look]];let topY;ctx.globalAlpha=e.ghost?0.5:(e.fade!=null?e.fade:1);
     if(e.echo&&av){for(let k=0;k<e.echo;k++){ctx.globalAlpha=0.28;drawAvatar(e,av,sx+Math.round(Math.cos(t*2.3+k*0.8)*(7+k*1.5)),sy-Math.round(Math.abs(Math.sin(t*3+k))*5)-k,t)}ctx.globalAlpha=1}
     if(e.look==="bell")topY=drawBell(e,sx,sy,t);else if(av){if(e.down){const hh=av.d.height/Q;ctx.save();ctx.translate(sx+8,sy+10);ctx.rotate(Math.PI/2*e.down);ctx.translate(-(sx+8),-(sy+15-hh/2));drawAvatar(e,av,sx,sy,t);ctx.restore();topY=sy-6}else topY=drawAvatar(e,av,sx,sy,t)}
@@ -2485,7 +2486,7 @@ G.ex=Object.assign({done:{bell:0,hr:0},traits:{},finds:[],wrong:0,missed:[],name
 (()=>{const st=document.createElement("style");st.textContent=`
 .smapt{width:100%;border-collapse:collapse;font-family:var(--ui);font-size:13.5px;line-height:1.6;margin:8px 0}
 .smapt th,.smapt td{border:1px solid var(--line);padding:6px 8px;vertical-align:top;text-align:left}
-.smapt tr>th:first-child{width:5.2em;font-family:var(--display);font-weight:400;font-size:15px;background:var(--paper2)}
+.smapt tr>th:first-child{width:6.4em;font-family:var(--display);font-weight:400;font-size:15px;background:var(--paper2)}
 .smapt th span{display:block;font-family:var(--ui);font-size:10.5px;color:#8a6a1f}
 .smapt td em{display:block;font-style:normal;font-size:10.5px;color:var(--muted)}
 .smapt td i{display:block;font-style:normal;font-size:11px;color:#8a6a1f}
@@ -2696,7 +2697,9 @@ async function proAttack(){const F=G.f,isB=G.route==="bell",p=G.player,mate=N("m
 }
 
 /* ── 말 ── */
-function drawHorse(e,sx,sy,t,layer){
+/* 말 그림(세 방향)이 있으면 그것을, 없으면 점으로 찍은 말을 그림 */
+function drawHorse(e,sx,sy,t,layer){const hv=AV.a_horse;if(!hv)return drawHorseOld(e,sx,sy,t,layer);const front=e.dir==="d";if((layer===1)===front)drawAvatar(e,hv,sx,sy,t)}
+function drawHorseOld(e,sx,sy,t,layer){
   const A=e.moving?Math.sin(((e.step%2)+e.prog)*Math.PI):0,side=e.dir==="l"||e.dir==="r",fl=e.dir==="l",bob=e.moving?Math.round(Math.abs(A)):0,y=sy-bob;
   const X=(x,w)=>fl?2*sx+16-x-w:x;const C1="#8a5a34",C2="#6d4426",M="#2b1c12",RD="#b53a2c";
   if(side){
