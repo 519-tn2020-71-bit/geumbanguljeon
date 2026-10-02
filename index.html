@@ -858,6 +858,7 @@ addEventListener("keydown",e=>{
   if(e.repeat)return;
   if(e.code==="KeyE"||e.code==="Space"||e.code==="Enter"||e.code==="KeyZ"){
     if(UI.onKey&&UI.onKey(e)){e.preventDefault();return}
+    if(G.battle&&!UI.modal){e.preventDefault();G.battle.attack();return}
     if(!UI.modal&&!G.busy&&!G.demo){e.preventDefault();interact()}
   }else if(UI.onKey){UI.onKey(e)}
   if(e.code==="Escape"&&UI.panel)closePanel();
@@ -868,7 +869,7 @@ document.querySelectorAll("#pad button").forEach(b=>{const k=b.dataset.k;
   const on=e=>{e.preventDefault();keys[k]=true;keyOrder=keyOrder.filter(x=>x!==k);keyOrder.push(k);nudge(k)};
   const off=e=>{e.preventDefault();keys[k]=false;keyOrder=keyOrder.filter(x=>x!==k)};
   b.addEventListener("pointerdown",on);b.addEventListener("pointerup",off);b.addEventListener("pointerleave",off);b.addEventListener("pointercancel",off)});
-$("#act").addEventListener("pointerdown",e=>{e.preventDefault();if(!UI.modal&&!G.busy&&!G.demo)interact()});
+$("#act").addEventListener("pointerdown",e=>{e.preventDefault();if(G.battle&&!UI.modal){G.battle.attack();return}if(!UI.modal&&!G.busy&&!G.demo)interact()});
 function nudge(k){const p=G.player;if(G.demo||G.busy||UI.modal||p.moving||!G.map||G.lock)return;tryMove(p,K2D[k])}
 function interact(){
   const p=G.player;if(p.moving||G.lock)return;const [dx,dy]=DIRV[p.dir];const x=p.tx+dx,y=p.ty+dy;
@@ -927,13 +928,13 @@ function wanderNPCs(dt){
 }
 function update(dt){
   const p=G.player;
-  const canMove=()=>!G.demo&&!G.busy&&!UI.modal&&!G.lock;
+  const canMove=()=>!G.demo&&(!G.busy||G.battle)&&!UI.modal&&!G.lock;
   if(canMove()&&!p.moving){const k=keyOrder[keyOrder.length-1];if(k&&keys[k])tryMove(p,K2D[k])}
   advance(p,dt,G.pspeed);
   if(G.zone&&!p.moving&&!G.busy&&!UI.modal&&G.zone.test(p.tx,p.ty)){const z=G.zone;G.zone=null;run(z.fn)}
   if(G.tileTask&&!p.moving){const k=p.tx+","+p.ty;if(G.tileTask.tiles.has(k)){G.tileTask.tiles.delete(k);G.tileTask.on(p.tx,p.ty)}}
   if(canMove()&&!p.moving){const k=keyOrder[keyOrder.length-1];if(k&&keys[k])tryMove(p,K2D[k])}
-  wanderNPCs(dt);ambient(dt);
+  wanderNPCs(dt);ambient(dt);if(G.battle)G.battle.tick(dt);
   for(const n of G.map.npcs){
     if(!n.moving&&n.queue.length){const d=n.queue[0];if(tryMove(n,d))n.queue.shift();else{n.wait=(n.wait||0)+dt;if(n.wait>1.2){n.queue.shift();n.wait=0}}}
     advance(n,dt,n.look==="chicken"?0.3:0.24);
@@ -984,7 +985,7 @@ function draw(t){
     ctx.globalAlpha=1;
     if(e!==G.player&&!G.demo)LABELS.push({x:sx+8,y:topY,name:e.name&&e.look!=="chicken"?e.name:"",mark:!!(e.mark&&!G.busy&&e.mark())});
   }})}
-  dr.sort((a,b)=>a.y-b.y).forEach(d=>d.f());drawParts(t);drawFX(t);
+  dr.sort((a,b)=>a.y-b.y).forEach(d=>d.f());drawParts(t);drawFX(t);if(G.battle)G.battle.draw(t);
   if(G.night){ctx.fillStyle=G.snow?"rgba(30,40,70,.42)":"rgba(18,24,48,.5)";ctx.fillRect(0,0,VW,VH);
     for(const L of (G.lights||[])){const hx=L[0]*T-cx+8,hy=L[1]*T-cy;const gr=ctx.createRadialGradient(hx,hy,4,hx,hy,80);gr.addColorStop(0,"rgba(255,200,120,.3)");gr.addColorStop(1,"rgba(255,200,120,0)");ctx.fillStyle=gr;ctx.fillRect(hx-90,hy-90,180,180)}}
   if(G.dream){ctx.fillStyle="rgba(215,200,255,.2)";ctx.fillRect(0,0,VW,VH)}
@@ -1112,8 +1113,8 @@ function timing(level,o){
       <div class="bar"><div class="zone"></div><div class="needle"></div></div><div class="st">○ ○ ○</div></div>`;
     $("#ui").appendChild(v);
     const bar=v.querySelector(".bar"),zone=v.querySelector(".zone"),nd=v.querySelector(".needle"),st=v.querySelector(".st");
-    let hits=0,pos=0,dirn=1,alive=true,zl=0,zw=0;const speed=0.55+level*0.2;
-    const newZone=()=>{zw=0.2-level*0.03;zl=0.1+Math.random()*(0.8-zw);zone.style.left=zl*100+"%";zone.style.width=zw*100+"%"};newZone();
+    let hits=0,pos=0,dirn=1,alive=true,zl=0,zw=0;const speed=0.32+level*0.08;
+    const newZone=()=>{zw=0.28-level*0.03;zl=0.1+Math.random()*(0.8-zw);zone.style.left=zl*100+"%";zone.style.width=zw*100+"%"};newZone();
     let lt=performance.now();
     const frame=now=>{if(!alive)return;const dt=(now-lt)/1000;lt=now;pos+=dirn*speed*dt;if(pos>1){pos=1;dirn=-1}if(pos<0){pos=0;dirn=1}nd.style.left=`calc(${pos*100}% - 2px)`;requestAnimationFrame(frame)};requestAnimationFrame(frame);
     const press=()=>{if(!alive)return;
@@ -1195,11 +1196,11 @@ function openPanel(html){closePanel();UI.panel=true;UI.modal=true;const v=docume
   v.addEventListener("click",e=>{if(e.target===v||e.target.closest("[data-close]"))closePanel();const j=e.target.closest("[data-ch]");if(j){const [r,c]=j.dataset.ch.split(":");hardGo({route:r,ch:+c});return}if(e.target.closest("[data-title]")){hardGo("title");return}if(e.target.closest("[data-snd]")){setMusic(!AU.on);closePanel();$("#bMenu").click();return}if(e.target.closest("[data-sfxt]")){setSfx(!AU.sfxOn);closePanel();$("#bMenu").click();return}{const tr=e.target.closest("[data-try]");if(tr){const was=AU.sfxOn;AU.sfxOn=true;sfx(tr.dataset.try);AU.sfxOn=was;return}}if(e.target.closest("[data-nav]")){G.nav=!G.nav;writeSave();closePanel();$("#bMenu").click();return}if(e.target.closest("[data-credits]")){openPanel(CREDITS);return}if(e.target.closest("[data-gloss]")){G.gloss=!G.gloss;writeSave();closePanel();$("#bMenu").click()}})}
 function closePanel(){const p=$("#panel");if(p){p.remove();UI.panel=false;UI.modal=!!document.querySelector("#title")||!!document.querySelector(".veil,.dlg")}}
 $("#bRec").onclick=()=>{
-  openPanel(`<span class="eb">기록첩</span><h2>원문 기록</h2><p class="note">붉은 낙관(原)이 찍힌 대사와 서술은 실제 「이춘풍전」의 문장이에요. 만난 원문이 여기에 모여요. 비평문을 쓸 때 근거로 쓰세요.</p>
+  openPanel(`<span class="eb">기록첩</span><h2>원문 기록</h2><p class="note">붉은 낙관(原)이 찍힌 대사와 서술은 실제 「금방울전」의 문장이에요. 만난 원문이 여기에 모여요. 비평문을 쓸 때 근거로 쓰세요.</p>
   ${G.rec.length?G.rec.map(r=>{const g=r.g||glossOf(r.t);return `<div class="rec"><small>제${r.ch}장 · ${esc(r.who||"서술")}</small>${esc(r.t)}${g?`<div class="gl"><b>풀이</b>${esc(g)}</div>`:""}</div>`}).join(""):'<p class="note">아직 모은 원문이 없어요.</p>'}`)};
 $("#bTip").onclick=()=>{
   const groups={};for(const x of G.tips){const k=(x.route||"wife")+":"+(x.ch||0);(groups[k]=groups[k]||[]).push(x)}
-  openPanel(`<span class="eb">배움첩</span><h2>배움 기록</h2><p class="note">이야기를 따라가며 떴던 ‘배움’ 알림이 모두 여기에 모여요. 판소리계 소설의 특징, 인물의 성격, 풍자의 장치를 복습해 보세요.</p>
+  openPanel(`<span class="eb">배움첩</span><h2>배움 기록</h2><p class="note">이야기를 따라가며 떴던 ‘배움’ 알림이 모두 여기에 모여요. 영웅 소설의 짜임, 인물의 성격, 소재가 하는 구실을 복습해 보세요.</p>
   ${G.tips.length?Object.entries(groups).map(([k,arr])=>{const [r,c]=k.split(":");const rt=ROUTES[r];const chn=rt&&rt.chapters[c-1]?`제${c}장 · ${rt.chapters[c-1][0]}`:"";return `<h3>${esc(rt?rt.name:"")}${chn?" · "+esc(chn):""}</h3>${arr.map(x=>`<div class="rec tipr">${x.q?`<em class="tq">${esc(x.q)}</em>`:""}${esc(x.t)}</div>`).join("")}`}).join(""):'<p class="note">아직 모은 배움이 없어요.</p>'}`)};
 $("#bPeople").onclick=()=>{const M=(G.met||[]).filter(id=>PEOPLE_DB[id]);const grp=k=>M.filter(id=>PEOPLE_DB[id].k===k);
   const row=id=>{const p=PEOPLE_DB[id];return `<div class="item">${(p.img?[].concat(p.img):[]).map(i=>`<img class="thumb" src="art/${i}.jpg" alt="">`).join("")}<div class="t">${esc(p.n)}${p.a?` <span class="alias">(${esc(p.a)})</span>`:""}</div><div class="d">${esc(p.d)}</div></div>`};
@@ -1209,7 +1210,7 @@ $("#bEvid").onclick=()=>{openPanel(`<span class="eb">증거첩</span><h2>모은 
 $("#bMenu").onclick=()=>{openPanel(`<span class="eb">메뉴</span><h2>메뉴</h2>
   <h3>설정</h3><div class="list"><button class="item" data-gloss style="text-align:left;cursor:pointer"><div class="t">현대어 풀이 · ${G.gloss?"켜짐":"꺼짐"}</div><div class="d">원문(原) 대사 아래에 쉬운 현대어 풀이를 함께 보여 줘요. 눌러서 켜고 끌 수 있어요.</div></button></div>
   <button class="item" data-nav style="text-align:left;cursor:pointer;width:100%;margin-top:8px"><div class="t">미니맵 · ${G.nav?"켜짐":"꺼짐"}</div><div class="d">오른쪽 위 작은 지도예요. 흰 점이 나, 깜빡이는 노란 점이 지금 할 일이에요. M 키로도 켜고 끌 수 있어요.</div></button>
-  <button class="item" data-snd style="text-align:left;cursor:pointer;width:100%;margin-top:8px"><div class="t">배경음 · ${AU.on?"켜짐":"꺼짐"}</div><div class="d">장면마다 바뀌는 국악풍 가락이에요. 게임 안에서 직접 합성해 연주해요.</div></button><button class="item" data-sfxt style="text-align:left;cursor:pointer;width:100%;margin-top:8px"><div class="t">효과음 · ${AU.sfxOn?"켜짐":"꺼짐"}</div><div class="d">대화 넘김, 발소리, 엽전, 곤장, 정답·오답 같은 소리예요.</div></button>
+  <button class="item" data-snd style="text-align:left;cursor:pointer;width:100%;margin-top:8px"><div class="t">배경음 · ${AU.on?"켜짐":"꺼짐"}</div><div class="d">장면마다 바뀌는 국악풍 가락이에요. 게임 안에서 직접 합성해 연주해요.</div></button><button class="item" data-sfxt style="text-align:left;cursor:pointer;width:100%;margin-top:8px"><div class="t">효과음 · ${AU.sfxOn?"켜짐":"꺼짐"}</div><div class="d">방울 소리, 발소리, 칼과 바람, 범의 울음, 정답·오답 같은 소리예요.</div></button>
   <div class="vols"><label>효과음 크기 <input type="range" min="0" max="300" step="10" value="${Math.round(AU.sfxVol*100)}" data-vol="sfx"><output>${Math.round(AU.sfxVol*100)}%</output></label><label>배경음 크기 <input type="range" min="0" max="200" step="10" value="${Math.round(AU.musicVol*100)}" data-vol="music"><output>${Math.round(AU.musicVol*100)}%</output></label></div>
   <div class="sfxgrid">${SFX_LIST.map(([k,n])=>`<button data-try="${k}">▶ ${n}</button>`).join("")}</div>
   <h3>장 고르기</h3>
@@ -2136,7 +2137,7 @@ function drawFX(t){
 }
 
 /* 효과음 들어 보기 */
-const SFX_LIST=[["jingle","방울 소리"],["give","건네받기"],["magic","보배의 힘"],["clang","칼 부딪는 소리"],["slash","베기"],["roar","범·요괴의 울음"],["thunder","벽력"],["boom","포성"],["fire","불길"],["wind","광풍"],["hoof","말발굽"],["drum","북"],["arrow","화살"],["cheer","만세 소리"],["chop","나무하기"],["crane","학 울음"],["heal","되살아남"],["blip","대화 넘기기"],["click","선택"],["step","발소리"],["coin","엽전"],["gain","증거 확보"],["tip","배움"],["correct","정답"],["wrong","오답"],["whack","곤장"],["gong","징(심문 시작)"],["poof","옷 갈아입기"],["stamp","도장·수결"],["stitch","바느질"],["pull","두레박 당기기"],["splash","물 쏟기"],["bubble","죽 끓기"]];
+const SFX_LIST=[["jingle","방울 소리"],["give","건네받기"],["magic","신통한 힘"],["clang","칼 부딪는 소리"],["slash","베기"],["swish","휘두르기"],["whack","들이받기"],["thud","쓰러지는 소리"],["roar","범·요괴의 울음"],["gulp","삼키는 소리"],["thunder","벽력"],["boom","포성"],["fire","불길"],["wind","광풍"],["hoof","말발굽"],["drum","북"],["arrow","화살"],["cheer","만세 소리"],["chop","나무하기"],["crane","학 울음"],["heal","되살아남"],["brush","붓글씨"],["bubble","약 달이기"],["splash","물에 빠지는 소리"],["poof","변신"],["stamp","도장"],["blip","대화 넘기기"],["click","선택"],["step","발소리"],["page","책장 넘기기"],["gain","새 인물·소재"],["tip","배움"],["correct","정답"],["wrong","오답"]];
 
 /* ═════════ 금방울전: 공통 (인물·소재, 지도, 도우미, 장 진행, 표지·결말) ═════════ */
 var PEOPLE_DB={
@@ -2287,7 +2288,7 @@ function teleport(x,y,dir){G.flash=0.8;sfx("poof");place(x,y,dir||"d")}
 /* 밟아서 바꾸는 땅 */
 function tileTask(tiles,to,label,done){
   const all=tiles.length;G.tileTask={tiles:new Set(tiles),on:(x,y)=>{G.map.g[y][x]=to;if(G.map._mb)G.map._mb=null;
-    const left=G.tileTask.tiles.size;sfx(left%3?"step":"stitch");for(let k=0;k<3;k++)addPart({k:"dust",x:x*T+8,y:y*T+12,vx:Math.random()*16-8,vy:-6-Math.random()*6,life:0.5});
+    const left=G.tileTask.tiles.size;sfx(left%3?"step":"chop");for(let k=0;k<3;k++)addPart({k:"dust",x:x*T+8,y:y*T+12,vx:Math.random()*16-8,vy:-6-Math.random()*6,life:0.5});
     setObj(label+" ("+(all-left)+"/"+all+")");if(!left){G.tileTask=null;G.pspeed=null;setTimeout(()=>run(done),200)}}};
   setObj(label+" (0/"+all+")");
 }
@@ -2544,8 +2545,8 @@ const SMAP=[
   {t:"뇌양 관아",hr:null,bell:{ch:3,s:"보은초로 장공 부인(해룡의 어머니)을 살려 ‘금령’이란 이름을 얻고, 족자를 물어다 준 뒤 떠난다."}},
   {t:"눈보라 치는 밤",link:1,hr:{ch:2,s:"언 방이 여름처럼 덥고, 못다 찧은 방아가 다 찧어져 있다. 방울 같은 것을 처음 본다."},bell:{ch:4,s:"신통력으로 해룡의 방을 덥히고 방아를 대신 찧는다."}},
   {t:"구호동",link:1,hr:{ch:2,s:"범이 나오는 골짜기로 보내지지만, 방울이 범을 쓰러뜨리고 밭을 갈아 준다."},bell:{ch:4,s:"달려드는 범 두 마리를 받아 쓰러뜨리고 번개같이 밭을 간다."}},
-  {t:"누명과 불",link:1,hr:{ch:3,s:"소룡 대신 살인 누명을 쓰고 옥에 갇혔다 풀려나고, 불타는 집을 떠난다."},bell:{ch:4,s:"옥에서도 금빛으로 감싸고, 불길 속에서 지킨 뒤 앞길을 인도한다."}},
-  {t:"봉래동",link:1,hr:{ch:4,s:"삼켜진 금령을 구하러 굴에 들어가 보검으로 요괴를 죽이고, 공주를 구해 부마가 된다."},bell:{ch:5,s:"요괴에게 삼켜지지만 배 속에서 요괴를 앓게 한다."}},
+  {t:"누명과 불",link:1,hr:{ch:3,s:"소룡 대신 살인 누명을 쓰고 옥에 갇혔다 풀려나고, 불타는 집을 떠난다."},bell:{ch:4,s:"옥중의 금빛과 불타지 않은 방은 금령의 도움으로 짐작된다. 집을 떠난 해룡의 앞길을 인도한다."}},
+  {t:"봉래동",link:1,hr:{ch:4,s:"삼켜진 금령을 구하러 굴에 들어가 보검으로 요괴를 죽이고, 공주를 구해 부마가 된다."},bell:{ch:5,s:"요괴에게 삼켜진다. 그 뒤로 요괴가 피를 토하며 앓는다."}},
   {t:"북방의 전쟁",link:1,hr:{ch:5,s:"호각의 계교로 불길에 갇혔다가 살아나 흉노를 무찌른다."},bell:{ch:5,s:"불길을 무릅쓰고 들어가 찬바람으로 불을 물리친다."}},
   {t:"다시 만남",link:1,hr:{ch:5,s:"족자와 칠성 사마귀로 부모를 되찾고, 금령과 혼인한다."},bell:{ch:5,s:"보배를 돌려주고 허물을 벗어 금령 소저가 되고, 해룡과 혼인한다."}}
 ];
@@ -2640,7 +2641,7 @@ function relGraph(){const met=new Set(G.met||[]);const side=id=>["bell","mak","s
 /* ── 영웅의 일생 맞추기 ── */
 const HERO={
   hr:[["고귀한 혈통","동해 용왕의 셋째 아들이자, 벼슬하던 장공의 아들이다."],["비정상적 출생","붉은 기운이 어머니의 몸에 들고, 아버지가 청룡 꿈을 꾼 뒤에 태어난다."],["어려서 버려짐","피란길에 부모가 길가에 두고 떠난다."],["구출·양육자","도적 무리에 있던 장삼이 업고 달아나 친자식처럼 기른다."],["자라서 겪는 위기","변 씨의 박대, 구호동의 범, 살인 누명, 불타는 집을 겪는다."],["조력자의 도움","위기마다 금방울이 나타나 구해 준다."],["위기 극복과 승리","요괴를 죽여 부마가 되고, 흉노를 쳐 위왕이 되며, 부모를 되찾는다."]],
-  bell:[["고귀한 혈통","남해 용왕의 딸이다."],["비정상적 출생","죽은 삼랑의 혼령이 다녀간 뒤, 사람이 아닌 금빛 방울로 태어난다."],["어려서 버려짐","어머니 막 씨가 멀리 버리고, 물에 던지고, 아궁이에 넣는다."],["비범한 능력","덥고 차게 하고, 천 리 길을 순식간에 가고, 바람을 일으킨다. 선관들이 준 보배와 이어 읽을 수 있다."],["자라서 겪는 위기","무손에게 도둑맞고, 관가에서 철퇴와 기름가마를 겪고, 요괴에게 삼켜진다."],["위기 극복","칼에도 기름에도 상하지 않고, 요괴의 배 속에서 요괴를 앓게 한다."],["승리","허물을 벗고 금령공주가 되어 해룡과 혼인한다."]]
+  bell:[["고귀한 혈통","남해 용왕의 딸이다."],["비정상적 출생","죽은 삼랑의 혼령이 다녀간 뒤, 사람이 아닌 금빛 방울로 태어난다."],["어려서 버려짐","어머니 막 씨가 멀리 버리고, 물에 던지고, 아궁이에 넣는다."],["비범한 능력","덥고 차게 하고, 천 리 길을 순식간에 가고, 바람을 일으킨다. 선관들이 준 보배와 이어 읽을 수 있다."],["자라서 겪는 위기","무손에게 도둑맞고, 관가에서 철퇴와 기름가마를 겪고, 요괴에게 삼켜진다."],["위기 극복","칼에도 기름에도 상하지 않고, 금령을 삼킨 요괴가 도리어 앓는다."],["승리","허물을 벗고 금령공주가 되어 해룡과 혼인한다."]]
 };
 function heroGame(){return new Promise(res=>{const L=HERO[G.route];if(!L)return res();const order=L.map((_,i)=>i).sort(()=>Math.random()-0.5);let cur=0,msg="";
   const who=G.route==="hr"?"해룡":"금방울";const v=mgOpen("");const box=v.querySelector(".sheet");box.classList.add("herobox");
@@ -2700,9 +2701,9 @@ async function proAttack(){const F=G.f,isB=G.route==="bell",p=G.player,mate=N("m
   await say("narr","문득 물결이 뒤집히며 남섬진주의 요괴가 길을 막아섰다. 요괴는 용녀를 앗아가려 한다.");
   sfx("roar");
   await say("narr","용자와 용녀는 힘을 합쳐 요괴와 맞섰다.");
-  await duelGame({foe:"monster",name:"남섬진주 요괴",ent:mon,title:"용자와 용녀 대 요괴",foeHp:10,myHp:4,rounds:2,meName:isB?"용녀":"용자",meImg:"p_dragons",
-    atkNote:"용의 기운이 붉은 칸에 들어왔을 때 치세요. 한가운데면 회심의 일격!",hitMsg:"용의 기운이 요괴를 쳤다!",missMsg:"막지 못했다! 요괴의 발톱이 스친다.",wrongMsg:"엉뚱한 쪽을 막았다! 요괴의 발톱이 스친다.",recoverMsg:"휘청였지만 다시 일어섰다.",
-    intro:"요괴가 주홍 같은 입을 벌리고 달려든다. 둘이 힘을 합쳐 막아야 한다!",draw:"아무리 쳐도 요괴는 꿈쩍하지 않는다. 힘이 다해 간다…"});
+  tip("요괴에게 다가가 E·Space(또는 擊 단추)로 치세요. 요괴가 붉은 느낌표를 띄우면 곧 덤벼드니 한 칸 비켜서세요.");
+  await fieldBattle({foes:[{e:mon,hp:40,boss:1,slow:1,keep:1}],myHp:6,obj:"요괴와 맞서 싸우자! 다가가서 치기 (E·Space)",word:"쿵!",hitSfx:"whack",left:()=>"둘이 힘을 합쳐 맞선다",until:B=>B.hits>=6||B.t>25});
+  await say("narr","아무리 쳐도 요괴는 꿈쩍하지 않는다. 힘이 다해 간다…");
   const yn=isB?p:mate,yj=isB?mate:p;
   lungeAt(mon,yn);sfx("slash");yn.hurt=0.7;G.shake=6;G.flash=0.5;await sleep(450);yn.down=1;sfx("thud");
   await say("narr","용녀는 힘이 다하여 쓰러지고 말았다.");
@@ -2825,6 +2826,59 @@ paintBag=function(){const el=document.getElementById("bag");if(!el)return;const 
 const WS_KEY=20;
 const WS_TAG={"막씨가 하루는 슬픔을 머금고 앉아 있":"Ⅰ","장부 나를 버리고 간 지가 거의 수십":"Ⅰ","내 과연 그대 뜻을 모르고 탕자의 마":"Ⅰ","하고 생시와 다름없이 수작하고 돌아간":"Ⅰ","막씨 크게 놀라며 괴이히 여기고 손으":"Ⅰ","다시 집어다가 멀리 버리고 돌아오니 ":"Ⅰ","또 다시 집어다 단단히 넣으니 물 위":"Ⅰ","내 팔자가 기구하여 이 같은 괴물을 ":"Ⅰ","아궁이를 닷새 후에 헤쳐 보니 방울이":"Ⅰ","하루는 막씨가 한데서 방아질을 하여 ":"Ⅰ","막씨가 기이히 여겨 남이 알까 걱정하":"Ⅰ","이 때가 엄동설한이라 변씨는 소룡과 ":"Ⅰ","추움을 견디지 못하여 자기 방에 들어":"Ⅰ","방앗간에 나아가 보니 밤에 못다 찧은":"Ⅰ","생이 잡으려 한즉 이리 미끈 달아나고":"Ⅰ","이것이 반드시 무심치 아니할지라 내 ":"Ⅰ","천상천하에 흰 눈이 가득하되 오직 해":"Ⅰ","홀연히 일진광풍이 일어나며 반시간이 ":"Ⅰ·Ⅱ","해룡이 분명 요술을 부리어 사람을 속":"Ⅰ·Ⅱ","우리 집의 전장이 구호동에 있더니 요":"Ⅰ·Ⅱ","인명은 재천이니 어찌 짐승에게 해를 ":"Ⅰ·Ⅱ","밭을 두어 이랑 갈 때 홀연히 바람이":"Ⅱ","이 때 홀연히 등뒤로부터 금방울이 내":"Ⅱ","방울이 번개같이 굴러다니며 한 시각이":"Ⅱ","이때 문득 벽력같은 소리가 진동하며 ":"Ⅱ","이번에는 반드시 금령이 죽었도다.":"Ⅱ","우리 대왕이 전일에는 용력이 절인하고":"Ⅱ","해룡이 이 형상을 보고 하수코자 하나":"Ⅱ","해룡이 즉시 그 보검을 받아 들고 달":"Ⅱ","저 금방울이 천지조화로 되었음에 재주":"Ⅱ","공주는 금령을 차마 손에 놓지 아니하":"Ⅲ","하늘이 너같은 영물을 내사 신통이 거":"Ⅲ","이 때 변씨는 해룡을 박대함이 나날이":"Ⅰ","생이 한편 놀라고 한편 괴이히 여겨 ":"Ⅰ","침상에 이전에 없던 북 만한 방울 같":"Ⅰ","요리 구르고 저리 굴러 잡히지 아니하":"Ⅰ","해룡이 얼어 죽었으리라.":"Ⅰ","해룡이 들어와 변씨에게 문후한 후에 ":"Ⅰ·Ⅱ","해룡은 이미 짐작하되 변씨는 더욱 신":"Ⅰ·Ⅱ","집안 어른이 돌아가시매, 가산이 점점":"Ⅰ·Ⅱ","속히 잘 다녀 오라.":"Ⅰ·Ⅱ","해룡이 조금도 두려워하지 아니하고 옷":"Ⅰ·Ⅱ","금령을 구하지 않고 이리 방황하느뇨?":"Ⅱ","하늘이 가르치니, 부득이 구하려니와 ":"Ⅱ","금령이 없으면 내 어찌하여 살아났으리":"Ⅱ","옷차림을 단단히 하고 한번 뛰어 들어":"Ⅱ","홀연히 천지가 밝아지고 해와 달이 고":"Ⅱ","자세히 본즉 문 위에 금자로 썼으되 ":"Ⅱ","우리 공주 낭랑이 간밤에 한 꿈을 얻":"Ⅱ","그대들은 놀라지 마라. 내 여기 들어":"Ⅱ","그대 덕분에 우리들을 살려내어 공주 ":"Ⅱ","그 짐승이 전각에 누워 앓다가 문득 ":"Ⅱ","너희 수십 명이 필경 다 요귀로 변하":"Ⅱ","우리들은 하나도 요괴가 아니오. 우리":"Ⅱ","경의 공을 논할진댄 태산이 낮고 강과":"Ⅲ","몽사를 의논할진대 이는 공주와 천장배":"Ⅲ","그대 비록 소년 등과하여 영걸의 풍으":"Ⅲ","하니 어사가 이 말을 듣고 비감을 이":"Ⅲ","문득 본 즉 벽에 족자가 자기 낭중에":"Ⅲ","족자의 그림이 무슨 뜻이 있는고?":"Ⅲ","뒤늦게야 한 자식을 낳았더니 난중에 ":"Ⅲ","하니라 어사가 이 말을 듣고 즉시 금":"Ⅲ","그 족자는 어디서 났사옵니까? 이상한":"Ⅲ","나도 금령의 말이 있노라.":"Ⅲ","족자도 금령이 물어온 것이요. 금령을":"Ⅲ","내 아이는 등에 일곱 사마귀 칠성을 ":"Ⅲ","어사가 이 말을 듣고 문득 실성 통곡":"Ⅲ","소자가 정성이 부족하여 이제야 부모를":"Ⅲ"};
 function wsTag(t){return WS_TAG[t.slice(0,WS_KEY)]||""}
+
+/* ═════════ 들판 싸움: 직접 움직이며, 치기 단추로 눈앞의 적을 친다 ═════════ */
+/* fieldBattle({foes:[{e,hp,boss,slow,floor}],myHp,obj,word,hitSfx,until(B)}) → 끝나면 B 를 돌려줌
+   적은 한 칸씩 다가와 느낌표를 띄운 뒤 덤벼든다. 그 사이 비켜서면 헛친다. 기력이 다해도 지지 않고 다시 일어선다. */
+(()=>{const st=document.createElement("style");st.textContent=`#bhud{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(22px + env(safe-area-inset-bottom,0px));z-index:7;font-family:var(--ui);font-size:14px;background:rgba(29,24,19,.82);color:#f1ead8;border:2px solid #f2c94c;padding:6px 14px;white-space:nowrap;pointer-events:none}
+#bhud b{color:#f07a6a;letter-spacing:2px}#bhud i{font-style:normal;color:#9aa3ad;letter-spacing:2px}#bhud span{margin-left:12px;color:#f2c94c}
+@media (pointer:coarse){#bhud{bottom:calc(164px + env(safe-area-inset-bottom,0px));font-size:13px}}`;document.head.appendChild(st)})();
+function fieldBattle(cfg){
+  return new Promise(res=>{
+    const p=G.player,now=()=>performance.now()/1000;
+    const B={foes:cfg.foes.filter(f=>f&&f.e).map(f=>Object.assign({hp:2,cd:0.8+Math.random()*0.8,tele:0},f)),my:cfg.myHp||5,myMax:cfg.myHp||5,acd:0,t:0,hits:0,over:false};
+    B.foes.forEach(f=>{f.max=f.hp;f.e.fixed=1;f.e.queue=[]});
+    const hud=document.createElement("div");hud.id="bhud";document.body.appendChild(hud);
+    const act=document.getElementById("act"),actTxt=act?act.textContent:"";if(act)act.textContent="擊";
+    const lockWas=G.lock;G.lock=false;G.battle=B;if(cfg.obj)setObj(cfg.obj);
+    const alive=()=>B.foes.filter(f=>f.hp>0);
+    const paint=()=>{hud.innerHTML=`기력 <b>${"◆".repeat(B.my)}</b><i>${"◇".repeat(B.myMax-B.my)}</i><span>${cfg.left?cfg.left(B):"남은 적 "+alive().length}</span>`};
+    const pop=(e,word,col)=>FX.push({k:"hit",e,t0:now(),dur:0.6,word,col:col||"#f07a6a"});
+    const end=()=>{if(B.over)return;B.over=true;G.battle=null;G.lock=lockWas;hud.remove();if(act)act.textContent=actTxt;setTimeout(()=>res(B),350)};
+    const check=()=>{if(cfg.until?cfg.until(B):!alive().length)end()};
+    B.attack=()=>{if(B.over||B.acd>0||UI.modal)return;B.acd=0.3;const [dx,dy]=DIRV[p.dir];
+      let f=alive().find(f=>f.e.tx===p.tx+dx&&f.e.ty===p.ty+dy)||alive().find(f=>Math.abs(f.e.tx-p.tx)+Math.abs(f.e.ty-p.ty)===1);
+      if(!f){sfx("swish");p.lunge={t0:now(),dx,dy};return}
+      lungeAt(p,f.e);B.hits++;f.e.hurt=0.35;G.shake=Math.max(G.shake||0,3);sfx(cfg.hitSfx||"slash");
+      if(f.hp>(f.floor||0))f.hp--;pop(f.e,f.hp<=0?(cfg.endWord||"쿵!"):(cfg.word||"챙!"));
+      const kx=Math.sign(f.e.tx-p.tx),ky=Math.sign(f.e.ty-p.ty);if(!f.boss&&!f.e.moving&&!blocked(f.e.tx+kx,f.e.ty+ky,f.e)){f.e.tx+=kx;f.e.ty+=ky}
+      f.tele=0;f.cd=Math.max(f.cd,f.slow?1.3:0.8);
+      if(f.hp<=0){f.e.down=f.e.tx<p.tx?-1:1;f.e.mount=0;f.e.hold=null;sfx("thud");if(!f.keep)setTimeout(()=>{if(G.map)G.map.npcs=G.map.npcs.filter(n=>n!==f.e)},900)}
+      paint();check()};
+    B.tick=dt=>{if(B.over||UI.modal)return;B.t+=dt;B.acd-=dt;B.gcd=(B.gcd||0)-dt;
+      for(const f of alive()){const e=f.e,d=Math.abs(e.tx-p.tx)+Math.abs(e.ty-p.ty);
+        if(f.tele>0){f.tele-=dt;if(f.tele<=0){e.dir=p.tx<e.tx?"l":p.tx>e.tx?"r":p.ty<e.ty?"u":"d";
+            if(Math.abs(e.tx-p.tx)+Math.abs(e.ty-p.ty)<=1){lungeAt(e,p);B.my--;p.hurt=0.4;sfx("slap");G.shake=Math.max(G.shake||0,4);pop(p,"퍽!","#f2c94c");
+              if(B.my<=0){B.my=B.myMax;toast("다시 일어서다","숨을 고르고 기력을 되찾았어요")}paint()}
+            else{sfx("swish");pop(e,"휙","#dfe6ef")}
+            f.cd=(f.slow?2.2:1.5)+Math.random()*0.8;B.gcd=0.9}continue}
+        f.cd-=dt;if(f.cd>0||e.moving)continue;
+        if(d<=1){if(B.gcd>0||alive().some(q=>q.tele>0)){f.cd=0.3;continue}f.tele=f.slow?1.4:1.05;e.dir=p.tx<e.tx?"l":p.tx>e.tx?"r":p.ty<e.ty?"u":"d"}
+        else{const ox=Math.sign(p.tx-e.tx),oy=Math.sign(p.ty-e.ty);const tries=Math.abs(p.tx-e.tx)>=Math.abs(p.ty-e.ty)?[[ox,0],[0,oy]]:[[0,oy],[ox,0]];
+          for(const [mx,my] of tries){if(!mx&&!my)continue;const dir=mx>0?"r":mx<0?"l":my<0?"u":"d";if(tryMove(e,dir))break}
+          f.cd=f.slow?0.7:0.35}}
+      if(cfg.until&&cfg.until(B))end()};
+    B.draw=t=>{const cx=G.cam.x,cy=G.cam.y;for(const f of alive()){const [px,py]=entPos(f.e),sx=Math.round(px-cx),sy=Math.round(py-cy)-(f.e.mount?48:f.e.look==="monster"?46:f.e.look==="tiger"?26:34);
+        const w=f.boss?22:16,x=sx+8-w/2;ctx.fillStyle="#1d1813";ctx.fillRect(x-1,sy-1,w+2,5);ctx.fillStyle="#5a2a22";ctx.fillRect(x,sy,w,3);ctx.fillStyle=f.boss?"#f2c94c":"#e0493a";ctx.fillRect(x,sy,Math.round(w*f.hp/f.max),3);
+        if(f.tele>0&&Math.sin(t*22)>-0.3){ctx.fillStyle="#1d1813";ctx.fillRect(sx+4,sy-13,8,11);ctx.fillStyle="#ff5a48";ctx.fillRect(sx+7,sy-11,2,5);ctx.fillRect(sx+7,sy-5,2,2)}}};
+    /* 점검용: 가까운 적 옆으로 가서 친다 */
+    B.auto=()=>{const f=alive().find(f=>f.hp>(f.floor||0))||alive()[0];if(!f||B.over)return;const e=f.e;if(Math.abs(e.tx-p.tx)+Math.abs(e.ty-p.ty)!==1)setNear(p,[[e.tx-1,e.ty],[e.tx+1,e.ty],[e.tx,e.ty+1],[e.tx,e.ty-1]]);
+      p.dir=e.tx<p.tx?"l":e.tx>p.tx?"r":e.ty<p.ty?"u":"d";B.acd=0;B.t+=3;B.attack()};
+    paint();
+  });
+}
+/* 흉노 군사 몇을 빈 칸에 세움 */
+function spawnFoes(n,cands,look,name){const out=[];for(const [x,y] of cands){if(out.length>=n)break;if(blocked(x,y,null)||(G.player.tx===x&&G.player.ty===y))continue;const e=npc("sol"+out.length+"_"+x,look||"hogak",name||"흉노 군사",x,y,"l",null,{fixed:1});G.map.npcs.push(e);out.push(e)}return out}
 
 /* ══════════════ 금방울 편 ══════════════ */
 /* 제1장 꿈과 출생 */
@@ -3152,7 +3206,7 @@ async function b4Hr(){
   const F=G.f;
   if(!F.warm){F.warm=1;await usePower("silk","눈보라 들이치는 방이 여름처럼 더워지는 일은 어느 보배와 이어질까?");
     await say("narr","추움을 견디지 못하여 자기 방에 들어가 쉬려 하였으나 설한풍은 들이치고 덮을 것은 없는지라. 몸을 옹송그려 엎디었더니, 홀연히 방속이 밝기가 대낮과 같은지라 여름과 같이 더워 온몸에 땀이 나거늘,",{o:1});
-    tip("추운 방이 여름처럼 더워졌어요. 원문은 까닭을 밝히지 않지만 금령의 신통력으로 읽혀요. 해룡은 아직 그 까닭을 몰라요.");
+    tip("추운 방이 여름처럼 더워졌어요. 이 대목에서는 까닭을 말하지 않지만, 원문은 뒤에서 금령이 해룡을 더울 때는 서늘하게, 추울 때는 덥게 해 주었다고 밝혀요. 해룡은 아직 그 까닭을 몰라요.");
     setObj("해룡이 다 찧지 못한 방아를 대신 찧어 주자 (방앗간)");return}
   if(F.milled&&!F.caught){F.caught=1;
     await say("narr","방앗간에 나아가 보니 밤에 못다 찧은 것이 다 찧어 그릇에 담겨 있거늘, 크게 의심하고 괴이히 여기어 방으로 돌아오니 전과 같이 밝고 더운지라, 아무리 생각하여도 의심이 없지 못하여 두루 살피니 침상에 이전에 없던 북 만한 방울 같은 것이 놓였으매,",{o:1});
@@ -3191,8 +3245,8 @@ async function b4SnowDone(){
 async function b4Tiger(){
   const F=G.f;if(F.tiger)return;sfx("wind");sfx("roar");
   await say("narr","밭을 두어 이랑 갈 때 홀연히 바람이 일고 모래가 날리며 문득 산상으로부터 이마가 흰 갈범이 주홍 같은 입을 벌리고 달려들매, …… 서편에서 또다시 큰 호랑이가 벽력같은 소리를 지르면서 달려드는 것이니, 해룡이 정히 위태하더라.",{o:1});
-  tip("금방울이 범을 들이받아요. 범이 붉은 칸에 들어왔을 때 그쪽 방향키를 누르세요.");
-  await usePower("flag","달려드는 범을 받아 쓰러뜨리는 일은 어느 보배와 이어질까?");await tigerGame();
+  tip("범에게 다가가 E·Space(또는 擊 단추)로 들이받으세요. 범이 붉은 느낌표를 띄우면 곧 덤벼드니 한 칸 비켜서세요.");
+  await usePower("flag","달려드는 범을 받아 쓰러뜨리는 일은 어느 보배와 이어질까?");await fieldBattle({foes:[{e:N("t1"),hp:2,keep:1},{e:N("t2"),hp:2,keep:1}],myHp:6,obj:"달려드는 범 두 마리를 들이받자! (E·Space)",word:"쿵!",endWord:"쿵!",hitSfx:"whack"});
   F.tiger=1;G.shake=4;sfx("thud");N("t1").down=1;N("t2").down=-1;
   await say("narr","이 때 홀연히 등뒤로부터 금방울이 내달아 한 번씩 받아 버리니 그 범이 소리를 지르고 달아나거늘 방울이 나는 듯이 연하여 받으나, 두 범이 모두 거꾸러지는 것이었으니,",{o:1});
   await say("narr","이제 넓은 밭이 남았다. 번개같이 굴러 밭을 갈아 보자.");
@@ -3200,12 +3254,12 @@ async function b4Tiger(){
 }
 async function b4Plowed(){
   await say("narr","방울이 번개같이 굴러다니며 한 시각이 되지 못하여 그 넓은 밭을 다 갈더라. 생이 크게 기특히 여기어 금방울에게 무수히 치사하고",{o:1});
-  await card("그 뒤","누명과 불","해룡은 범 두 마리를 끌고 돌아왔다. 그러나 변 씨의 계교는 끝나지 않았다. 사람을 죽인 소룡 대신 누명을 쓰고 옥에 갇힌 해룡.\n금령은 옥에서도 해룡 곁을 떠나지 않았다.");
+  await card("그 뒤","누명과 불","해룡은 범 두 마리를 끌고 돌아왔다. 그러나 변 씨의 계교는 끝나지 않았다. 사람을 죽인 소룡 대신 누명을 쓰고 옥에 갇힌 해룡.\n옥에 갇힌 해룡에게 기이한 일이 일어났다.");
   const F=G.f;const m=buildFarm(false);G.map=m;setMood("sad");place(12,14,"u");
   m.npcs.push(npc("hr","hrkid","해룡",11,10,"d",b4Fire,{mark:()=>!F.fire,fixed:1,hold:"cangue"}));m.objs.push({k:"quilt",x:12,y:10,w:1,h:1,pass:1});
   await say("narr","해룡이 혼연히 다짐을 두니 이대로 문서를 만들고 큰칼을 씌워 옥에 집어넣으니, 온몸에 금광이 둘러싸여 있더라,",{o:1});
   await say("sar","해룡이 비록 칼을 쓰고 옥중에 갇혀 있으나, 비단 이불을 덮고 자더이다.",{o:1,name:"옥졸"});
-  tip("옥에 갇힌 해룡을 금빛이 감싸고, 비단 이불을 덮어 줘요. 모두 금령이 보이지 않게 돕는 일이지요.");
+  tip("옥중의 금빛과 비단 이불을 누가 했는지 원문은 밝히지 않아요. 금령이 해룡의 어려운 일을 없애 주었다는 원문의 다른 대목과 금빛이라는 점에서, 금령의 도움으로 짐작해 볼 수 있어요.");
   holdSet(N("hr"),null);G.map.objs=G.map.objs.filter(o=>o.k!=="quilt");N("hr").down=1;await say("narr","옥에서 풀려난 해룡이 집에 돌아온 어느 밤. 변 씨 모자가 외숙 병구완을 핑계로 집을 비웠다.");
   G.night=true;G.lights=[[7,6]];
   setObj("잠든 해룡에게 굴러가자");
@@ -3244,12 +3298,12 @@ async function b5Monster(){
   await say("narr","요괴의 배 속은 캄캄했다. 그러나 금령은 죽지 않았다.");
   await bellyGame();
   await say("maid","우리 대왕이 전일에는 용력이 절인하고 신통이 거룩하여 당해낼 자 없더니 오늘은 나가시더니 홀연 속을 앓고 돌아와 피를 무수히 토하고 기절하니,",{o:1,name:"시녀들 (배 밖에서 들리는 소리)"});
-  tip("금령이 요괴의 배 속에서 요괴를 앓게 했어요. 그런데 요괴를 죽이는 일은 누가 하게 될까요?");
+  tip("금령을 삼킨 뒤로 요괴가 피를 토하며 앓아요. 원문은 까닭을 직접 말하지 않지만 배 속의 금령 때문으로 읽혀요. 그런데 요괴를 죽이는 일은 누가 하게 될까요?");
   await say("narr","이윽고 바깥에서 사람의 기척이 들렸다. 해룡이 금령을 구하러 요괴의 궁전까지 들어온 것이다.");
   await say("narr","해룡이 이 형상을 보고 하수코자 하나 빈손으로 몸에 촌철이 없어 할 수 없이 방황하는데, 그 때 한 미인이 칠보 홍군으로 몸도 가볍게 걸어오며, 벽상에 걸린 보검을 가져다가 급히 해룡에게 주는 것이매,",{o:1});
   meet("s_sword");G.shake=4;sfx("slash");
   await say("narr","해룡이 즉시 그 보검을 받아 들고 달려들어 그 요귀의 가슴을 무수히 찌르니 그 짐승이 그제야 죽어 늘어지는지라. 자세히 보니 금터럭 돋힌 암퇘지이어늘, 가슴을 헤치고 본즉 문득 금령이 굴러 나오니,",{o:1});
-  tip("금령은 요괴를 앓게 했지만 죽이는 것은 해룡이에요. 금령의 능력이 해룡을 돕는 데에만 쓰인다는 점을 이 작품의 한계로 보기도 해요.");
+  tip("요괴는 금령을 삼키고 앓게 되었지만, 요괴를 죽이는 것은 해룡이에요. 금령의 능력이 해룡을 돕는 데에만 쓰인다는 점을 이 작품의 한계로 보기도 해요.");
   await say("hrgen","저 금방울이 천지조화로 되었음에 재주가 무궁하고 신통이 기이하기로 정히 요괴를 잡고 공주를 구하여 고국에 돌아가게 하였음이, 다 금령의 조화로 됨이요.",{o:1,name:"해룡"});
   await card("황성","천자와 황후 앞에서","해룡은 공주를 구한 공으로 황성에 불려 갔다. 공주는 금령을 품에서 놓지 않았다.");
   const m=buildGamyeong();G.map=m;setMood("pyong");place(11,11,"u");
@@ -3317,7 +3371,7 @@ async function b5Home(){
   await aliasGame(aliasPick(5));
   await card("혼례","전생의 인연","천자는 금령의 공을 갚고자 하였다. 전생에 못다 한 인연이 마침내 이루어지는 날.");
   await weddingScene();
-  await toNext("제5장 요괴와 불길, 그리고 허물",["요괴가 금령을 삼키지만 금령이 배 속에서 요괴를 앓게 한다.","해룡이 보검으로 요괴를 죽이고 금령과 공주를 구한다.","황후가 금령의 공을 치하한다.","금령이 불길 속의 해룡을 찬바람으로 구하고 족자를 남긴다.","선관에게 보배를 돌려준 금령이 허물을 벗고 여인이 된다."]);
+  await toNext("제5장 요괴와 불길, 그리고 허물",["요괴가 금령을 삼킨 뒤 피를 토하며 앓는다.","해룡이 보검으로 요괴를 죽이고 금령과 공주를 구한다.","황후가 금령의 공을 치하한다.","금령이 불길 속의 해룡을 찬바람으로 구하고 족자를 남긴다.","선관에게 보배를 돌려준 금령이 허물을 벗고 여인이 된다."]);
 }
 
 /* ══════════════ 장해룡 편 ══════════════ */
@@ -3357,7 +3411,7 @@ const H1={
     await say("narr","장공이 좋은 말로 달래고 부인을 재촉하여 달아날 때 걸음마다 돌아보니 해룡이 부모를 부르며,",{o:1});
     await say("hrkid","쉬 오라.",{o:1,name:"어린 해룡"});
     const j=N("jang"),w=N("jmom");walk(j,"uuuuuuuu");await walk(w,"uuuuuuuu");G.f.gone=1;
-    G.f.bandits=1;sfx("gong");G.lock=false;
+    G.f.bandits=1;sfx("drum");G.lock=false;
     setObj("도적들이 다가온다… 그중 한 사람이 다른 이들을 말린다. 그에게 가 보자");
   }
 };
@@ -3504,7 +3558,6 @@ async function h2Tigers(){
   const b=N("bell"),t1=N("t1"),t2=N("t2");bellGlow(b);
   for(const t of [t1,t2,t1,t2]){setNear(b,[[t.tx+(t===t1?1:-1),t.ty],[t.tx,t.ty+1]]);lungeAt(b,t);await sleep(150);sfx("whack");t.hurt=0.4;G.shake=3;FX.push({k:"hit",e:t,t0:performance.now()/1000,dur:0.6,word:"쿵!"});await sleep(420)}
   await say("narr","이 때 홀연히 등뒤로부터 금방울이 내달아 한 번씩 받아 버리니 그 범이 소리를 지르고 달아나거늘 방울이 나는 듯이 연하여 받으나, 두 범이 모두 거꾸러지는 것이었으니, 해룡이 달려들어 두 범을 죽이고 본즉 방울이 번개같이 굴러다니며 한 시각이 되지 못하여 그 넓은 밭을 다 갈더라.",{o:1});
-  await timing(1,{eb:"구호동",title:"쓰러진 범에게 달려들어라",desc:"범이 다시 일어나기 전에! 표시가 붉은 칸에 왔을 때 누르세요."});G.shake=4;sfx("whack");addXp(10);
   F.tigerDown=1;t1.down=1;t2.down=-1;sfx("thud");
   for(const k of [...G.map.fieldTiles]){const [x,y]=k.split(",").map(Number);G.map.g[y][x]=":";b.tx=x;b.ty=y;await sleep(35)}G.map._mb=null;
   G.lock=false;
@@ -3563,7 +3616,7 @@ async function h3Jailer(){
   const F=G.f;if(F.report)return say("sar","쉿, 조용히 하시오.",{name:"옥졸"});F.report=1;
   await say("narr","해룡이 혼연히 다짐을 두니 이대로 문서를 만들고 큰칼을 씌워 옥에 집어넣으니, 온몸에 금광이 둘러싸여 있더라,",{o:1});
   await say("sar","죄인들이 있는 곳은 어두워 보이지 아니하고 해룡이 있는데는 화광과 같은 것이 비치어 밝으므로 자세히 본즉 해룡이 비록 칼을 쓰고 옥중에 갇혀 있으나, 비단 이불을 덮고 자더이다.",{o:1,name:"옥졸"});
-  tip("옥중의 금빛과 비단 이불. 누구의 조화인지 짐작되지요?");
+  tip("옥중의 금빛과 비단 이불을 누가 했는지 원문은 밝히지 않아요. 앞에서 금령이 ‘어려운 일이 있으면 없이하여 주니’라고 한 것과 이어 보면 금령의 도움으로 짐작할 수 있어요.");
   await say("narr","이 고을 법은 살인 죄인을 닷새에 한 번씩 매로 다스렸다. 그런데 이상한 일이 일어났다.");
   await say("narr","이날 마침 지현이 아이를 앞에 앉히우고 매를 치는데, 형장이 내려치는 족족 그 아이가 간간이 울며 기절을 하더라.",{o:1});
   await say("narr","겁이 난 지현은 매를 멈추었다. 그 뒤 어느 날 밤, 지현의 세 살배기 아들이 감쪽같이 사라졌다.");
@@ -3578,7 +3631,7 @@ async function h3Jihyeon(){
   await flog(G.player,3,{});N("kid").hurt=0.6;
   await say("narr","형졸들이 영을 받고 큰 대를 잡아 힘을 다하여 치되 꿈쩍도 하지 않고, 지현의 아들이 또한 간간이 울며 기절하여 버리는 것이었으니,",{o:1});
   await say("narr","그 아이가 울음을 그치고 웃으며 해룡에게 안기어 노는 것이 아닌가. 해룡의 곁을 잠시도 떨어지지 아니 하는지라 지현이 할 수 없이 생을 방송하여 아이를 보라 하니,",{o:1});
-  tip("해룡을 치면 지현의 아들이 기절하고, 아이는 해룡 곁에만 있으려 해요. 해룡을 풀려나게 한 이 기이한 일들은 금령의 조화로 읽혀요.");
+  tip("해룡을 치면 지현의 아들이 기절하고, 아이는 해룡 곁에만 있으려 해요. 이 기이한 일이 누구의 조화인지 원문은 말하지 않아요. 금령의 도움이라고 짐작해 볼 수 있을 뿐이에요.");
   await card("집으로","변 씨의 두려움","해룡이 풀려나 관아에서 신임을 얻는다는 말에 변 씨는 겁이 났다. 억울하게 죄를 씌운 일이 드러나면 제 목숨이 위태롭기 때문이다.");
   const m=buildFarm(false);G.map=m;G.night=true;G.lights=[[15,6]];setMood("sad");place(10,9,"d");holdSet(G.player,null);
   m.npcs.push(npc("byeon","byeon","변 씨",6,8,"d",h3Plot,{mark:()=>!F.plot,fixed:1}),npc("sor","soryong","소룡",8,8,"d",null,{fixed:1,show:()=>!F.plot}));
@@ -3676,7 +3729,7 @@ async function h4Fight(){
   if(!F.swordOut){
     N("mon").hurt=1;
     await say("narr","그 짐승이 전각에 누워 앓다가 문득 사람을 보고 일어나려 하다가 도로 자빠지며 배를 움키고 온 몸을 뒤틀어 움직이지 못하고 입으로 피를 무수히 토하고 거꾸러지더라.",{o:1});
-    tip("요괴가 앓는 까닭은 배 속에 삼켜진 금령 때문이에요.");
+    tip("요괴가 앓는 것은 금령을 삼킨 뒤부터예요. 원문은 까닭을 직접 말하지 않지만 배 속의 금령 때문으로 읽혀요.");
     for(;;){const c=await choose("hrkid","지금 요괴를 없앨 때다. 그런데 손에는 아무것도 없다.",["맨주먹으로 달려든다.","주변에 쓸 만한 것이 없는지 살핀다."]);if(c===1)break;
       await notOriginal("hrkid","원작의 해룡은 촌철도 없어 어쩔 줄 몰라 망설여요. 그때 누군가 칼을 건네지요.")}
     const pr=N("pr");await walk(pr,"ru");pr.dir="u";await sleep(250);F.swordOut=1;holdSet(pr,"sword");sfx("clang");await sleep(350);await walk(pr,"dr");pr.dir="r";
@@ -3684,7 +3737,8 @@ async function h4Fight(){
     F.swordOut=1;sfx("tip");
     setObj("미인이 내민 보검을 받아 들자");return;
   }
-  await duelGame({foe:"monster",name:"요괴",ent:N("mon"),title:"보검을 든 해룡 대 요괴",foeHp:6,myHp:5,atkNote:"칼끝이 붉은 칸에 들어왔을 때 찌르세요. 한가운데면 회심의 일격!",hitMsg:"보검이 요괴의 가슴을 찔렀다!",missMsg:"막지 못했다! 몸부림치는 요괴의 발톱이 스친다.",wrongMsg:"엉뚱한 쪽을 막았다! 요괴의 발톱이 스친다.",recoverMsg:"휘청였지만 다시 보검을 고쳐 잡았다.",intro:"앓던 요괴가 피를 토하며 몸부림친다. 발톱을 막아 내고 보검으로 가슴을 찔러라!",win:"보검이 요괴의 가슴 깊이 박혔다. 요괴가 거꾸러진다!"});
+  tip("요괴에게 다가가 E·Space(또는 擊 단추)로 찌르세요. 앓는 요괴가 붉은 느낌표를 띄우며 몸부림치면 한 칸 비켜서세요.");
+  await fieldBattle({foes:[{e:N("mon"),hp:6,boss:1,slow:1,keep:1}],myHp:6,obj:"보검으로 요괴를 찌르자! 다가가서 치기 (E·Space)",word:"푹!",endWord:"푹!",hitSfx:"slash"});N("mon").down=0;
   lungeAt(G.player,N("mon"));G.shake=5;sfx("slash");sfx("roar");FX.push({k:"hit",e:N("mon"),t0:performance.now()/1000,dur:0.8,word:"푹!",col:"#f07a6a"});await sleep(500);F.killed=1;
   await say("narr","해룡이 즉시 그 보검을 받아 들고 달려들어 그 요귀의 가슴을 무수히 찌르니 그 짐승이 그제야 죽어 늘어지는지라. 자세히 보니 금터럭 돋힌 암퇘지이어늘, 가슴을 헤치고 본즉 문득 금령이 굴러 나오니,",{o:1});
   G.map.npcs.push(npc("bell2","bell","금령",17,9,"d",null,{fixed:1}));sfx("jingle");
@@ -3782,7 +3836,10 @@ async function h5Hogak(){
   sfx("hoof");await walk(man,"rrrrrrrr");yang.down=0;walk(man,"llllllll");await walk(yang,"lllllllll");
   tip("우리 편 장수 이양춘이 설만춘의 거짓 패배에 속아 화살을 맞아요. ‘거짓 패하여 달아나거늘’처럼, 적은 지는 척 달아나 유인하는 꾀를 써요. 기억해 두세요.");
   await say("narr","원수가 크게 노하여 창을 잡고 말을 달려 호각을 맞아 싸워 백여 합에 이르도록 승부를 미결하더라.",{o:1});
-  await duelGame({foe:"hogak",name:"호각",ent:h,title:"원수 해룡 대 선봉장 호각",foeHp:9,myHp:5,rounds:3,intro:"호각이 장창을 꼬나 잡고 달려든다!",draw:"백여 합을 겨루어도 승부가 나지 않는다. 호각이 숨을 고르며 물러선다."});
+  const sols=spawnFoes(3,[[23,14],[24,12],[23,16],[25,14],[24,15],[25,12]]);
+  tip("적에게 다가가 E·Space(또는 擊 단추)로 치세요. 붉은 느낌표가 뜨면 곧 덤벼드니 비켜서세요. 군사들을 쓰러뜨리고 호각을 몰아붙이세요.");
+  await fieldBattle({foes:[{e:h,hp:12,boss:1,floor:5,keep:1},...sols.map(e=>({e,hp:2}))],myHp:6,obj:"흉노 군사를 쓰러뜨리고 호각과 겨루자! (E·Space)",left:B=>"남은 군사 "+B.foes.filter(f=>!f.boss&&f.hp>0).length,until:B=>(B.foes.every(f=>f.boss||f.hp<=0)&&B.foes[0].hp<=5)||B.t>120});
+  await say("narr","아무리 겨루어도 승부가 나지 않는다. 호각이 숨을 고르며 물러선다.");
   addXp(20);
   await say("hogak","오늘은 너와 자웅을 결하려니와 만약 내 너를 잡지 못하면 죽기를 면치 못하리라.",{o:1});
   await scuffle(h,G.player,["챙!","챙!"]);
@@ -3826,7 +3883,8 @@ async function h5Bell(){
   const h=npc("hog2","hogak","호각",7,12,"d",null,{fixed:1,mount:1});G.map.npcs.push(h);place(7,14,"u");
   sfx("boom");G.shake=3;await say("hrgen","적장 호각은 나를 아느냐?",{o:1});
   await say("narr","호각이 황망한 중에 언뜻 보니 장원수라 호각이 대경실색하며 미처 손을 놀리지 못하고",{o:1});
-  await duelGame({foe:"hogak",name:"호각",ent:h,title:"매복한 원수, 놀란 호각",foeHp:5,myHp:5,intro:"빈 진에 든 호각 앞을 원수가 막아선다. 끝을 낼 때다!",win:"원수의 칼이 번쩍이자 호각이 말 아래로 쓰러졌다!"});
+  const sols2=spawnFoes(2,[[5,12],[9,12],[6,13],[8,13],[5,14],[9,14]]);
+  await fieldBattle({foes:[{e:h,hp:5,boss:1,keep:1},...sols2.map(e=>({e,hp:2}))],myHp:6,obj:"빈 진에 든 호각과 군사들을 쳐라! (E·Space)",endWord:"으악!"});
   addXp(30);burst(h);sfx("cheer");G.map.npcs=G.map.npcs.filter(n=>n!==h);
   await say("narr","원수의 칼이 번쩍이자 호각은 쓰러졌고, 남은 적장들도 이양춘과 장만에게 모두 무찔렸다.");
   await card("개선","천하의 명장","원수는 크게 이기고 돌아왔다. 천자는 십 리 밖까지 나와 원수를 맞았다.");
