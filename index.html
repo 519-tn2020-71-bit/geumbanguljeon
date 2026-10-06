@@ -2423,6 +2423,14 @@ function drawHeld(e,sx,sy,topY,t){
     if(e.down)continue;
     if(h.pos==="back"){h.d(sx+8+(e.dir==="r"?-6:e.dir==="l"?6:0),Math.round(topY+17)-bob,t);continue}
     if(e.look==="bell"){const n=a.length;h.d(sx+8+(hand-(n-1)/2)*10,Math.round(topY+4+Math.sin(t*4+hand)*1.2),t);hand++;continue}
+    if(hand===0&&e.swing&&!h.pos){const q=(performance.now()/1000-e.swing.t0)/0.26;if(q>=0&&q<1){const d=e.dir,base={r:Math.PI/2,l:-Math.PI/2,u:0,d:Math.PI}[d],hx=sx+8+(d==="l"?-5:d==="r"?5:0),hy=sy+3+(d==="u"?-5:d==="d"?4:0);
+        ctx.save();
+        if(id==="spear"){const [dx,dy]=DIRV[d],reach=Math.sin(Math.PI*q)*10;ctx.translate(hx+dx*reach,hy+dy*reach);ctx.rotate(base);ctx.scale(1.2,1.2);h.d(0,7,t);ctx.restore();
+          ctx.strokeStyle="rgba(255,255,255,"+(0.8*(1-q))+")";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(hx+dx*8,hy+dy*8);ctx.lineTo(hx+dx*(20+reach),hy+dy*(20+reach));ctx.stroke()}
+        else{const s=d==="l"||d==="u"?-1:1,a0=base-s*1.5,ang=a0+s*2.8*q;ctx.translate(hx,hy);ctx.rotate(ang);ctx.scale(1.35,1.35);h.d(0,0,t);ctx.restore();
+          ctx.strokeStyle="rgba(255,255,255,"+(0.85*(1-q))+")";ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(hx,hy,22,a0-Math.PI/2,ang-Math.PI/2,s<0);ctx.stroke();
+          ctx.strokeStyle="rgba(255,243,160,"+(0.5*(1-q))+")";ctx.lineWidth=1;ctx.beginPath();ctx.arc(hx,hy,17,a0-Math.PI/2,ang-Math.PI/2,s<0);ctx.stroke()}
+        hand++;continue}}
     if(hand<2){const right=(hand===0)!==(e.dir==="l");h.d(sx+(right?15:1),sy+5-bob,t);hand++}
     else{h.d(sx+8+(over-(nOver-1)/2)*11,Math.round(topY-3+Math.sin(t*3+over)*1.5),t);over++}
   }
@@ -2701,9 +2709,10 @@ async function proAttack(){const F=G.f,isB=G.route==="bell",p=G.player,mate=N("m
   await say("narr","문득 물결이 뒤집히며 남섬진주의 요괴가 길을 막아섰다. 요괴는 용녀를 앗아가려 한다.");
   sfx("roar");
   await say("narr","용자와 용녀는 힘을 합쳐 요괴와 맞섰다.");
+  holdSet(p,"sword");holdSet(mate,"sword");
   tip("요괴에게 다가가 E·Space(또는 擊 단추)로 치세요. 요괴가 붉은 느낌표를 띄우면 곧 덤벼드니 한 칸 비켜서세요.");
-  await fieldBattle({foes:[{e:mon,hp:40,boss:1,slow:1,keep:1}],myHp:6,obj:"요괴와 맞서 싸우자! 다가가서 치기 (E·Space)",word:"쿵!",hitSfx:"whack",left:()=>"둘이 힘을 합쳐 맞선다",until:B=>B.hits>=6||B.t>25});
-  await say("narr","아무리 쳐도 요괴는 꿈쩍하지 않는다. 힘이 다해 간다…");
+  await fieldBattle({foes:[{e:mon,hp:40,boss:1,slow:1,keep:1}],myHp:6,obj:"요괴와 맞서 싸우자! 다가가서 치기 (E·Space)",word:"챙!",hitSfx:"clang",left:()=>"둘이 힘을 합쳐 맞선다",until:B=>B.hits>=6||B.t>25});
+  await say("narr","아무리 쳐도 요괴는 꿈쩍하지 않는다. 힘이 다해 간다…");holdSet(p,null);holdSet(mate,null);
   const yn=isB?p:mate,yj=isB?mate:p;
   lungeAt(mon,yn);sfx("slash");yn.hurt=0.7;G.shake=6;G.flash=0.5;await sleep(450);yn.down=1;sfx("thud");
   await say("narr","용녀는 힘이 다하여 쓰러지고 말았다.");
@@ -2749,6 +2758,11 @@ function seenLine(t){const E=G.ex;if(!E)return false;if(!SEEN)SEEN=new Set(E.see
 (()=>{const st=document.createElement("style");st.textContent=`.dlg .skipb{position:absolute;right:10px;top:-38px;font-family:var(--ui);font-size:13px;padding:6px 12px;background:rgba(241,234,216,.96);border:2px solid var(--ink2);box-shadow:0 3px 0 rgba(0,0,0,.35);cursor:pointer}
 .dlg .skipb:hover{background:#fff3d6}
 .dlg .wsb{font-family:var(--ui);font-size:11.5px;color:#fff;background:var(--indigo);padding:2px 8px;border-radius:10px;margin-left:8px;white-space:nowrap}`;document.head.appendChild(st)})();
+
+/* ── 배움 알림이 시야를 오래 가리지 않게 ── */
+(()=>{const t0=tip;let tm=null;tip=function(text){t0(text);G.tipSteps=0;G.tipAt=performance.now();const el=document.querySelector(".tip");if(!el)return;clearTimeout(tipTimer);clearTimeout(tm);
+    const ms=Math.max(4000,Math.min(8000,2200+String(text).length*55));tm=setTimeout(()=>{el.style.transition="opacity .5s";el.style.opacity="0";setTimeout(()=>el.remove(),520)},ms)};
+  const m0=tryMove;tryMove=function(ent,d){const r=m0(ent,d);if(r&&ent===G.player&&!UI.modal){G.tipSteps=(G.tipSteps||0)+1;if(G.tipSteps>=5&&performance.now()-(G.tipAt||0)>2500)document.querySelectorAll(".tip").forEach(x=>x.remove())}return r}})();
 
 /* 금방울전 소품 그림 설정: [그림 파일, 왼쪽부터 든 것] · [기준(h 높이/w 너비), 크기(놀이 점), 손 위치] */
 const PICSHEETS=[["g_it1",["sword","spear","bow","hammer","axe","hoe"]],["g_it2",["broom","scroll","herb","fruit","bowl","pouch"]],["g_it3",["paper","book","brush","silk","fan","redfan"]],
@@ -2847,15 +2861,18 @@ function fieldBattle(cfg){
     const end=()=>{if(B.over)return;B.over=true;G.battle=null;G.lock=lockWas;hud.remove();if(act)act.textContent=actTxt;setTimeout(()=>res(B),350)};
     const check=()=>{if(cfg.until?cfg.until(B):!alive().length)end()};
     B.attack=()=>{if(B.over||B.acd>0||UI.modal)return;B.acd=0.3;const [dx,dy]=DIRV[p.dir];
-      let f=alive().find(f=>f.e.tx===p.tx+dx&&f.e.ty===p.ty+dy)||alive().find(f=>Math.abs(f.e.tx-p.tx)+Math.abs(f.e.ty-p.ty)===1);
-      if(!f){sfx("swish");p.lunge={t0:now(),dx,dy};return}
-      lungeAt(p,f.e);B.hits++;f.e.hurt=0.35;G.shake=Math.max(G.shake||0,3);sfx(cfg.hitSfx||"slash");
-      if(f.hp>(f.floor||0))f.hp--;pop(f.e,f.hp<=0?(cfg.endWord||"쿵!"):(cfg.word||"챙!"));
+      const adj=alive().filter(q=>Math.abs(q.e.tx-p.tx)+Math.abs(q.e.ty-p.ty)===1),front=q=>q.e.tx===p.tx+dx&&q.e.ty===p.ty+dy,can=q=>q.hp>(q.floor||0);
+      let f=adj.find(q=>front(q)&&can(q))||adj.find(can)||adj.find(front)||adj[0];
+      const armed=p.look!=="bell"&&holdList(p).some(id=>HELD[id]&&!HELD[id].pos);
+      if(!f){sfx("swish");if(armed)p.swing={t0:now()};else p.lunge={t0:now(),dx,dy};return}
+      if(armed){p.dir=f.e.tx<p.tx?"l":f.e.tx>p.tx?"r":f.e.ty<p.ty?"u":"d";p.swing={t0:now()};sfx("swish")}else lungeAt(p,f.e);B.last=B.t;B.hits++;f.e.hurt=0.35;G.shake=Math.max(G.shake||0,3);sfx(cfg.hitSfx||"slash");
+      const hurt=f.hp>(f.floor||0);if(hurt)f.hp--;else sfx("clang");pop(f.e,!hurt?"막았다!":f.hp<=0?(cfg.endWord||"쿵!"):(cfg.word||"챙!"),hurt?null:"#dfe6ef");
       const kx=Math.sign(f.e.tx-p.tx),ky=Math.sign(f.e.ty-p.ty);if(!f.boss&&!f.e.moving&&!blocked(f.e.tx+kx,f.e.ty+ky,f.e)){f.e.tx+=kx;f.e.ty+=ky}
       f.tele=0;f.cd=Math.max(f.cd,f.slow?1.3:0.8);
       if(f.hp<=0){f.e.down=f.e.tx<p.tx?-1:1;f.e.mount=0;f.e.hold=null;sfx("thud");if(!f.keep)setTimeout(()=>{if(G.map)G.map.npcs=G.map.npcs.filter(n=>n!==f.e)},900)}
       paint();check()};
     B.tick=dt=>{if(B.over||UI.modal)return;B.t+=dt;B.acd-=dt;B.gcd=(B.gcd||0)-dt;
+      if(B.t-(B.last||0)>10){B.last=B.t;for(const f of alive()){const e=f.e;if(Math.abs(e.tx-p.tx)+Math.abs(e.ty-p.ty)>2&&!e.moving)setNear(e,[[p.tx+2,p.ty],[p.tx-2,p.ty],[p.tx,p.ty+2],[p.tx,p.ty-2],[p.tx+1,p.ty+1],[p.tx-1,p.ty-1]])}}
       for(const f of alive()){const e=f.e,d=Math.abs(e.tx-p.tx)+Math.abs(e.ty-p.ty);
         if(f.tele>0){f.tele-=dt;if(f.tele<=0){e.dir=p.tx<e.tx?"l":p.tx>e.tx?"r":p.ty<e.ty?"u":"d";
             if(Math.abs(e.tx-p.tx)+Math.abs(e.ty-p.ty)<=1){lungeAt(e,p);B.my--;p.hurt=0.4;sfx("slap");G.shake=Math.max(G.shake||0,4);pop(p,"퍽!","#f2c94c");
@@ -3838,13 +3855,13 @@ async function h5Hogak(){
   await say("narr","원수가 크게 노하여 창을 잡고 말을 달려 호각을 맞아 싸워 백여 합에 이르도록 승부를 미결하더라.",{o:1});
   const sols=spawnFoes(3,[[23,14],[24,12],[23,16],[25,14],[24,15],[25,12]]);
   tip("적에게 다가가 E·Space(또는 擊 단추)로 치세요. 붉은 느낌표가 뜨면 곧 덤벼드니 비켜서세요. 군사들을 쓰러뜨리고 호각을 몰아붙이세요.");
-  await fieldBattle({foes:[{e:h,hp:12,boss:1,floor:5,keep:1},...sols.map(e=>({e,hp:2}))],myHp:6,obj:"흉노 군사를 쓰러뜨리고 호각과 겨루자! (E·Space)",left:B=>"남은 군사 "+B.foes.filter(f=>!f.boss&&f.hp>0).length,until:B=>(B.foes.every(f=>f.boss||f.hp<=0)&&B.foes[0].hp<=5)||B.t>120});
+  await fieldBattle({foes:[{e:h,hp:12,boss:1,floor:5,keep:1},...sols.map(e=>({e,hp:2}))],myHp:6,obj:"흉노 군사를 쓰러뜨리고 호각과 겨루자! (E·Space)",left:B=>{const n=B.foes.filter(f=>!f.boss&&f.hp>0).length;return n?"남은 군사 "+n+" · 군사부터 쓰러뜨리자":"호각을 몰아붙이자"},until:B=>(B.foes.every(f=>f.boss||f.hp<=0)&&B.foes[0].hp<=5)||B.t>70});
   await say("narr","아무리 겨루어도 승부가 나지 않는다. 호각이 숨을 고르며 물러선다.");
   addXp(20);
   await say("hogak","오늘은 너와 자웅을 결하려니와 만약 내 너를 잡지 못하면 죽기를 면치 못하리라.",{o:1});
-  await scuffle(h,G.player,["챙!","챙!"]);
+  setNear(h,[[G.player.tx+1,G.player.ty],[G.player.tx-1,G.player.ty],[G.player.tx,G.player.ty-1],[G.player.tx,G.player.ty+1]]);await scuffle(h,G.player,["챙!","챙!"]);
   await say("narr","문득 호각이 말을 돌려 본진으로 가지 아니하고",{o:1});
-  sfx("hoof");walk(seol,"rrrrrrrrrrrr");await walk(h,"rrrrrrrrrrrrrrrr");F.lured=1;G.map.npcs=G.map.npcs.filter(n=>n!==seol);
+  sfx("hoof");walk(seol,"rrrrrrrrrrrr");await Promise.race([walk(h,"rrrrrrrrrrrrrrrr"),sleep(2400)]);h.queue=[];seol.queue=[];h.onDone=null;seol.onDone=null;F.lured=1;G.map.npcs=G.map.npcs.filter(n=>n!==seol);
   for(;;){const c=await choose("hrgen","호각이 동쪽 골짜기로 달아난다. 어떻게 할까?",["“저희 비록 간계가 있는 모양이나 내 어찌 저를 두려워하리요.” 하고 뒤쫓는다.","계교가 있을지 모르니 본진으로 돌아간다."]);if(c===0)break;
     await notOriginal("hrgen","원작의 해룡은 적을 얕보고 뒤쫓아 들어가요. 그 방심이 큰 위기를 불러요.")}
   await say("hrgen","저희 비록 간계가 있는 모양이나 내 어찌 저를 두려워하리요.",{o:1,think:1});
