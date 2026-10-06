@@ -2553,7 +2553,7 @@ const SMAP=[
   {t:"뇌양 관아",hr:null,bell:{ch:3,s:"보은초로 장공 부인(해룡의 어머니)을 살려 ‘금령’이란 이름을 얻고, 족자를 물어다 준 뒤 떠난다."}},
   {t:"눈보라 치는 밤",link:1,hr:{ch:2,s:"언 방이 여름처럼 덥고, 못다 찧은 방아가 다 찧어져 있다. 방울 같은 것을 처음 본다."},bell:{ch:4,s:"신통력으로 해룡의 방을 덥히고 방아를 대신 찧는다."}},
   {t:"구호동",link:1,hr:{ch:2,s:"범이 나오는 골짜기로 보내지지만, 방울이 범을 쓰러뜨리고 밭을 갈아 준다."},bell:{ch:4,s:"달려드는 범 두 마리를 받아 쓰러뜨리고 번개같이 밭을 간다."}},
-  {t:"누명과 불",link:1,hr:{ch:3,s:"소룡 대신 살인 누명을 쓰고 옥에 갇혔다 풀려나고, 불타는 집을 떠난다."},bell:{ch:4,s:"옥중의 금빛과 불타지 않은 방은 금령의 도움으로 짐작된다. 집을 떠난 해룡의 앞길을 인도한다."}},
+  {t:"누명과 불",link:1,hr:{ch:3,s:"소룡 대신 살인 누명을 쓰고 옥에 갇혔다 풀려나고, 불타는 집을 떠난다."},bell:{ch:4,s:"해룡이 옥에 갇혔다 풀려나고 집이 불탄다. 집을 떠난 해룡의 앞길을 인도한다."}},
   {t:"봉래동",link:1,hr:{ch:4,s:"삼켜진 금령을 구하러 굴에 들어가 보검으로 요괴를 죽이고, 공주를 구해 부마가 된다."},bell:{ch:5,s:"요괴에게 삼켜진다. 그 뒤로 요괴가 피를 토하며 앓는다."}},
   {t:"북방의 전쟁",link:1,hr:{ch:5,s:"호각의 계교로 불길에 갇혔다가 살아나 흉노를 무찌른다."},bell:{ch:5,s:"불길을 무릅쓰고 들어가 찬바람으로 불을 물리친다."}},
   {t:"다시 만남",link:1,hr:{ch:5,s:"족자와 칠성 사마귀로 부모를 되찾고, 금령과 혼인한다."},bell:{ch:5,s:"보배를 돌려주고 허물을 벗어 금령 소저가 되고, 해룡과 혼인한다."}}
@@ -3276,7 +3276,7 @@ async function b4Plowed(){
   m.npcs.push(npc("hr","hrkid","해룡",11,10,"d",b4Fire,{mark:()=>!F.fire,fixed:1,hold:"cangue"}));m.objs.push({k:"quilt",x:12,y:10,w:1,h:1,pass:1});
   await say("narr","해룡이 혼연히 다짐을 두니 이대로 문서를 만들고 큰칼을 씌워 옥에 집어넣으니, 온몸에 금광이 둘러싸여 있더라,",{o:1});
   await say("sar","해룡이 비록 칼을 쓰고 옥중에 갇혀 있으나, 비단 이불을 덮고 자더이다.",{o:1,name:"옥졸"});
-  tip("옥중의 금빛과 비단 이불을 누가 했는지 원문은 밝히지 않아요. 금령이 해룡의 어려운 일을 없애 주었다는 원문의 다른 대목과 금빛이라는 점에서, 금령의 도움으로 짐작해 볼 수 있어요.");
+  tip("옥에 갇힌 해룡의 몸을 금빛이 둘러싸고, 비단 이불이 덮여 있어요. 원문은 까닭을 밝히지 않고 기이한 일로만 그려요.");
   holdSet(N("hr"),null);G.map.objs=G.map.objs.filter(o=>o.k!=="quilt");N("hr").down=1;await say("narr","옥에서 풀려난 해룡이 집에 돌아온 어느 밤. 변 씨 모자가 외숙 병구완을 핑계로 집을 비웠다.");
   G.night=true;G.lights=[[7,6]];
   setObj("잠든 해룡에게 굴러가자");
@@ -3315,7 +3315,7 @@ async function b5Monster(){
   await say("narr","요괴의 배 속은 캄캄했다. 그러나 금령은 죽지 않았다.");
   await bellyGame();
   await say("maid","우리 대왕이 전일에는 용력이 절인하고 신통이 거룩하여 당해낼 자 없더니 오늘은 나가시더니 홀연 속을 앓고 돌아와 피를 무수히 토하고 기절하니,",{o:1,name:"시녀들 (배 밖에서 들리는 소리)"});
-  tip("금령을 삼킨 뒤로 요괴가 피를 토하며 앓아요. 원문은 까닭을 직접 말하지 않지만 배 속의 금령 때문으로 읽혀요. 그런데 요괴를 죽이는 일은 누가 하게 될까요?");
+  tip("금령을 삼킨 뒤로 요괴가 피를 토하며 앓아요. 그런데 요괴를 죽이는 일은 누가 하게 될까요?");
   await say("narr","이윽고 바깥에서 사람의 기척이 들렸다. 해룡이 금령을 구하러 요괴의 궁전까지 들어온 것이다.");
   await say("narr","해룡이 이 형상을 보고 하수코자 하나 빈손으로 몸에 촌철이 없어 할 수 없이 방황하는데, 그 때 한 미인이 칠보 홍군으로 몸도 가볍게 걸어오며, 벽상에 걸린 보검을 가져다가 급히 해룡에게 주는 것이매,",{o:1});
   meet("s_sword");G.shake=4;sfx("slash");
@@ -3626,14 +3626,14 @@ async function h3Accuse(){
   await card("옥","큰칼을 쓴 해룡","차사들은 다시 묻지도 않고 해룡을 관가로 끌고 가 다짐을 받고 옥에 가두었다.");
   const m=buildGamyeong();G.map=m;G.night=true;G.lights=[[5,12]];setMood("sad");place(4,12,"u");holdSet(G.player,"cangue");m.objs.push({k:"quilt",x:3,y:12,w:1,h:1,pass:1});
   m.npcs.push(npc("jih","jihyeon2","지현",11,6,"d",h3Jihyeon,{mark:()=>F.kidCame&&!F.freed,fixed:1}),npc("jail","sar","옥졸",7,12,"l",h3Jailer,{mark:()=>!F.report,fixed:1}),
-    npc("kid","kid2","지현의 아들",12,7,"d",null,{fixed:1}),npc("bell","bell","금령",4,11,"d",null,{fixed:1}));
+    npc("kid","kid2","지현의 아들",12,7,"d",null,{fixed:1}));
   setObj("옥을 지키는 옥졸에게 말을 걸어 보자");
 }
 async function h3Jailer(){
   const F=G.f;if(F.report)return say("sar","쉿, 조용히 하시오.",{name:"옥졸"});F.report=1;
   await say("narr","해룡이 혼연히 다짐을 두니 이대로 문서를 만들고 큰칼을 씌워 옥에 집어넣으니, 온몸에 금광이 둘러싸여 있더라,",{o:1});
   await say("sar","죄인들이 있는 곳은 어두워 보이지 아니하고 해룡이 있는데는 화광과 같은 것이 비치어 밝으므로 자세히 본즉 해룡이 비록 칼을 쓰고 옥중에 갇혀 있으나, 비단 이불을 덮고 자더이다.",{o:1,name:"옥졸"});
-  tip("옥중의 금빛과 비단 이불을 누가 했는지 원문은 밝히지 않아요. 앞에서 금령이 ‘어려운 일이 있으면 없이하여 주니’라고 한 것과 이어 보면 금령의 도움으로 짐작할 수 있어요.");
+  tip("옥에 갇힌 해룡의 몸을 금빛이 둘러싸고, 비단 이불이 덮여 있어요. 원문은 까닭을 밝히지 않고 기이한 일로만 그려요.");
   await say("narr","이 고을 법은 살인 죄인을 닷새에 한 번씩 매로 다스렸다. 그런데 이상한 일이 일어났다.");
   await say("narr","이날 마침 지현이 아이를 앞에 앉히우고 매를 치는데, 형장이 내려치는 족족 그 아이가 간간이 울며 기절을 하더라.",{o:1});
   await say("narr","겁이 난 지현은 매를 멈추었다. 그 뒤 어느 날 밤, 지현의 세 살배기 아들이 감쪽같이 사라졌다.");
@@ -3648,7 +3648,7 @@ async function h3Jihyeon(){
   await flog(G.player,3,{});N("kid").hurt=0.6;
   await say("narr","형졸들이 영을 받고 큰 대를 잡아 힘을 다하여 치되 꿈쩍도 하지 않고, 지현의 아들이 또한 간간이 울며 기절하여 버리는 것이었으니,",{o:1});
   await say("narr","그 아이가 울음을 그치고 웃으며 해룡에게 안기어 노는 것이 아닌가. 해룡의 곁을 잠시도 떨어지지 아니 하는지라 지현이 할 수 없이 생을 방송하여 아이를 보라 하니,",{o:1});
-  tip("해룡을 치면 지현의 아들이 기절하고, 아이는 해룡 곁에만 있으려 해요. 이 기이한 일이 누구의 조화인지 원문은 말하지 않아요. 금령의 도움이라고 짐작해 볼 수 있을 뿐이에요.");
+  tip("해룡을 치면 지현의 아들이 기절하고, 아이는 해룡 곁에만 있으려 해요. 이런 기이한 일들 끝에 해룡은 풀려나요. 원문은 까닭을 따로 밝히지 않아요.");
   await card("집으로","변 씨의 두려움","해룡이 풀려나 관아에서 신임을 얻는다는 말에 변 씨는 겁이 났다. 억울하게 죄를 씌운 일이 드러나면 제 목숨이 위태롭기 때문이다.");
   const m=buildFarm(false);G.map=m;G.night=true;G.lights=[[15,6]];setMood("sad");place(10,9,"d");holdSet(G.player,null);
   m.npcs.push(npc("byeon","byeon","변 씨",6,8,"d",h3Plot,{mark:()=>!F.plot,fixed:1}),npc("sor","soryong","소룡",8,8,"d",null,{fixed:1,show:()=>!F.plot}));
@@ -3746,7 +3746,7 @@ async function h4Fight(){
   if(!F.swordOut){
     N("mon").hurt=1;
     await say("narr","그 짐승이 전각에 누워 앓다가 문득 사람을 보고 일어나려 하다가 도로 자빠지며 배를 움키고 온 몸을 뒤틀어 움직이지 못하고 입으로 피를 무수히 토하고 거꾸러지더라.",{o:1});
-    tip("요괴가 앓는 것은 금령을 삼킨 뒤부터예요. 원문은 까닭을 직접 말하지 않지만 배 속의 금령 때문으로 읽혀요.");
+    tip("요괴는 금령을 삼키고 돌아온 뒤부터 피를 토하며 앓아요.");
     for(;;){const c=await choose("hrkid","지금 요괴를 없앨 때다. 그런데 손에는 아무것도 없다.",["맨주먹으로 달려든다.","주변에 쓸 만한 것이 없는지 살핀다."]);if(c===1)break;
       await notOriginal("hrkid","원작의 해룡은 촌철도 없어 어쩔 줄 몰라 망설여요. 그때 누군가 칼을 건네지요.")}
     const pr=N("pr");await walk(pr,"ru");pr.dir="u";await sleep(250);F.swordOut=1;holdSet(pr,"sword");sfx("clang");await sleep(350);await walk(pr,"dr");pr.dir="r";
@@ -3861,6 +3861,7 @@ async function h5Hogak(){
   await say("hogak","오늘은 너와 자웅을 결하려니와 만약 내 너를 잡지 못하면 죽기를 면치 못하리라.",{o:1});
   setNear(h,[[G.player.tx+1,G.player.ty],[G.player.tx-1,G.player.ty],[G.player.tx,G.player.ty-1],[G.player.tx,G.player.ty+1]]);await scuffle(h,G.player,["챙!","챙!"]);
   await say("narr","문득 호각이 말을 돌려 본진으로 가지 아니하고",{o:1});
+  {const fx=Math.max(G.player.tx+2,22);setNear(h,[[fx,13],[fx,14],[fx+1,13],[fx+1,14],[24,13],[25,13]]);h.dir="r"}
   sfx("hoof");walk(seol,"rrrrrrrrrrrr");await Promise.race([walk(h,"rrrrrrrrrrrrrrrr"),sleep(2400)]);h.queue=[];seol.queue=[];h.onDone=null;seol.onDone=null;F.lured=1;G.map.npcs=G.map.npcs.filter(n=>n!==seol);
   for(;;){const c=await choose("hrgen","호각이 동쪽 골짜기로 달아난다. 어떻게 할까?",["“저희 비록 간계가 있는 모양이나 내 어찌 저를 두려워하리요.” 하고 뒤쫓는다.","계교가 있을지 모르니 본진으로 돌아간다."]);if(c===0)break;
     await notOriginal("hrgen","원작의 해룡은 적을 얕보고 뒤쫓아 들어가요. 그 방심이 큰 위기를 불러요.")}
