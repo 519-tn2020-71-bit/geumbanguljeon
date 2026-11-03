@@ -1277,7 +1277,7 @@ function openHist(){
 document.addEventListener("click",ev=>{if(ev.target.closest("[data-hist]")){ev.stopPropagation();ev.preventDefault();openHist()}},true);
 
 /* ═════════ 장면 연출 ═════════ */
-function lungeAt(a,b){const dx=Math.sign(b.tx-a.tx),dy=Math.sign(b.ty-a.ty);a.dir=dx>0?"r":dx<0?"l":dy<0?"u":"d";a.lunge={t0:performance.now()/1000,dx,dy}}
+function lungeAt(a,b){const dx=Math.sign(b.tx-a.tx),dy=Math.sign(b.ty-a.ty);a.dir=dx>0?"r":dx<0?"l":dy<0?"u":"d";if(typeof weaponOf==="function"&&a.look!=="bell"&&weaponOf(a))a.swing={t0:performance.now()/1000};else a.lunge={t0:performance.now()/1000,dx,dy}}
 /* 머리채를 잡고 치는 장면: 원문 그대로 '휘휘 칭칭', '이리 치고', '저리 치며' */
 async function scuffle(att,vic,words){
   const p=G.player;if(att!==p&&Math.abs(att.tx-vic.tx)+Math.abs(att.ty-vic.ty)>1)setNear(att,[[vic.tx-1,vic.ty],[vic.tx+1,vic.ty],[vic.tx,vic.ty+1],[vic.tx,vic.ty-1]]);
@@ -2427,15 +2427,16 @@ function drawHeld(e,sx,sy,topY,t){
     if(e.down)continue;
     if(h.pos==="back"){h.d(sx+8+(e.dir==="r"?-6:e.dir==="l"?6:0),Math.round(topY+17)-bob,t);continue}
     if(e.look==="bell"){const n=a.length;h.d(sx+8+(hand-(n-1)/2)*10,Math.round(topY+4+Math.sin(t*4+hand)*1.2),t);hand++;continue}
-    if(hand===0&&e.swing&&!h.pos&&performance.now()/1000-e.swing.t0<SWING_T){if(!G.battle)drawSwing(e,sx,sy,t);hand++;continue}
+    if(e.swing&&id===weaponOf(e)&&performance.now()/1000-e.swing.t0<SWING_T){if(!G.battle||e!==G.player)drawSwing(e,sx,sy,t);hand++;continue}
     if(hand<2){const right=(hand===0)!==(e.dir==="l");h.d(sx+(right?15:1),sy+5-bob,t);hand++}
     else{h.d(sx+8+(over-(nOver-1)/2)*11,Math.round(topY-3+Math.sin(t*3+over)*1.5),t);over++}
   }
 }
-/* 휘두르기(싸움 표시 층에서 부름): 준비(머리 뒤로 듦) → 내리치기 → 멈춤. 칼은 손잡이를 축으로 돈다 */
+/* 휘두르기: 준비(머리 뒤로 듦) → 내리치기 → 멈춤. 칼은 손잡이를 축으로 돈다 */
 const SWING_T=0.34;
+function weaponOf(e){return holdList(e).find(i=>HELD[i]&&!HELD[i].pos&&/^(sword|spear|hammer|axe|knife|pestle|stick)$/.test(i))}
 function drawSwing(e,sx,sy,t){if(!e.swing)return;const q=(performance.now()/1000-e.swing.t0)/SWING_T;if(q<0||q>=1)return;
-  const id=holdList(e).find(i=>HELD[i]&&!HELD[i].pos),h=id&&HELD[id];if(!h)return;
+  const id=weaponOf(e),h=id&&HELD[id];if(!h)return;
   const d=e.dir,[dx,dy]=DIRV[d],base={r:Math.PI/2,l:-Math.PI/2,u:0,d:Math.PI}[d],hx=sx+8+dx*4,hy=sy+2+(dy<0?-3:dy>0?3:0);ctx.save();
   if(id==="spear"){const k=q<0.3?-q/0.3*3:q<0.55?-3+(q-0.3)/0.25*15:12*(1-(q-0.55)/0.45*0.6);ctx.translate(hx+dx*k,hy+dy*k);ctx.rotate(base);ctx.scale(1.2,1.2);h.d(0,7,t);ctx.restore();
     if(q>0.3&&q<0.85){ctx.strokeStyle="rgba(255,255,255,"+(0.8*(1-(q-0.3)/0.55))+")";ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(hx+dx*10,hy+dy*10);ctx.lineTo(hx+dx*(26+k),hy+dy*(26+k));ctx.stroke()}return}
@@ -2873,7 +2874,7 @@ function fieldBattle(cfg){
     B.attack=()=>{if(B.over||B.acd>0||UI.modal)return;B.acd=0.3;const [dx,dy]=DIRV[p.dir];
       const adj=alive().filter(q=>inReach(q,p)),front=q=>Math.sign(q.e.tx-p.tx)===dx&&Math.sign(q.e.ty-p.ty)===dy,can=q=>q.hp>(q.floor||0);
       let f=adj.find(q=>front(q)&&can(q))||adj.find(can)||adj.find(front)||adj[0];
-      const armed=p.look!=="bell"&&holdList(p).some(id=>HELD[id]&&!HELD[id].pos);/* SWING_T */
+      const armed=p.look!=="bell"&&weaponOf(p);
       if(!f){sfx("swish");if(armed)p.swing={t0:now()};else p.lunge={t0:now(),dx,dy};return}
       if(armed){p.dir=f.e.tx<p.tx?"l":f.e.tx>p.tx?"r":f.e.ty<p.ty?"u":"d";p.swing={t0:now()};sfx("swish")}else lungeAt(p,f.e);B.last=B.t;B.hits++;f.e.hurt=0.35;G.shake=Math.max(G.shake||0,3);sfx(cfg.hitSfx||"slash");
       const hurt=f.hp>(f.floor||0);if(hurt)f.hp--;else sfx("clang");pop(f.e,!hurt?"막았다!":f.hp<=0?(cfg.endWord||"쿵!"):(cfg.word||"챙!"),hurt?null:"#dfe6ef");
@@ -2895,7 +2896,7 @@ function fieldBattle(cfg){
           for(const [mx,my] of tries){if(!mx&&!my)continue;const dir=mx>0?"r":mx<0?"l":my<0?"u":"d";if(tryMove(e,dir))break}
           f.cd=f.slow?0.7:0.35}}
       if(cfg.until&&cfg.until(B))end()};
-    B.draw=t=>{const cx=G.cam.x,cy=G.cam.y;if(p.swing&&typeof drawSwing==="function"){const [qx,qy]=entPos(p);drawSwing(p,Math.round(qx-cx),Math.round(qy-cy)-(p.lift||0),t)}for(const f of alive()){const [px,py]=entPos(f.e),sx=Math.round(px-cx),sy=Math.round(py-cy)-(f.e.mount?48:f.e.look==="monster"?46:f.e.look==="tiger"?26:34);
+    B.draw=t=>{const cx=G.cam.x,cy=G.cam.y;if(p.swing){const [qx,qy]=entPos(p);drawSwing(p,Math.round(qx-cx),Math.round(qy-cy)-(p.lift||0)-(p.mount?18:0),t)}for(const f of alive()){const [px,py]=entPos(f.e),sx=Math.round(px-cx),sy=Math.round(py-cy)-(f.e.mount?48:f.e.look==="monster"?46:f.e.look==="tiger"?26:34);
         const w=f.boss?22:16,x=sx+8-w/2;ctx.fillStyle="#1d1813";ctx.fillRect(x-1,sy-1,w+2,5);ctx.fillStyle="#5a2a22";ctx.fillRect(x,sy,w,3);ctx.fillStyle=f.boss?"#f2c94c":"#e0493a";ctx.fillRect(x,sy,Math.round(w*f.hp/f.max),3);
         if(f.tele>0&&Math.sin(t*22)>-0.3){ctx.fillStyle="#1d1813";ctx.fillRect(sx+4,sy-13,8,11);ctx.fillStyle="#ff5a48";ctx.fillRect(sx+7,sy-11,2,5);ctx.fillRect(sx+7,sy-5,2,2)}}};
     /* 점검용: 가까운 적 옆으로 가서 친다 */
